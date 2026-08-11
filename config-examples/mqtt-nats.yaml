@@ -12,6 +12,8 @@ connections:
     port: 8883
     username: lpc-user
     password: test
+    device-status:
+      - device-id: "12345"
 transformations:
   - name: XML IncomingEvent to JSON IEEE2030.5 Event
     description: Example showing transformation of messages from XML to JSON

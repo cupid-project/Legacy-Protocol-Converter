@@ -25,14 +25,17 @@ import si.sunesis.interoperability.common.exceptions.HandlerException;
 import si.sunesis.interoperability.common.interfaces.RequestHandler;
 import si.sunesis.interoperability.lpc.transformations.configuration.Configuration;
 import si.sunesis.interoperability.lpc.transformations.configuration.models.ConfigurationModel;
+import si.sunesis.interoperability.lpc.transformations.configuration.models.ConnectionModel;
 import si.sunesis.interoperability.lpc.transformations.configuration.models.RegistrationModel;
 import si.sunesis.interoperability.lpc.transformations.configuration.models.TransformationModel;
 import si.sunesis.interoperability.lpc.transformations.connections.Connections;
+import si.sunesis.interoperability.lpc.transformations.connections.DeviceStatusManager;
 import si.sunesis.interoperability.lpc.transformations.exceptions.LPCException;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Main handler for managing all transformations in the application.
@@ -51,6 +54,9 @@ public class TransformationsHandler {
 
     @Inject
     private ObjectTransformer objectTransformer;
+
+    @Inject
+    private DeviceStatusManager deviceStatusManager;
 
     private final ArrayList<TransformationHandler> transformationHandlers = new ArrayList<>();
 
@@ -75,6 +81,12 @@ public class TransformationsHandler {
      */
     private void handleTransformations(Boolean newConf) throws LPCException {
         Connections connections = new Connections(configuration, newConf);
+
+        List<ConnectionModel> yamlConnections = configuration.getConfigurations().stream()
+                .flatMap(item -> item.getConnections().stream())
+                .toList();
+        deviceStatusManager.sync(yamlConnections, newConf);
+
         for (ConfigurationModel configurationModel : configuration.getConfigurations()) {
             RegistrationModel registration = configurationModel.getRegistration();
 

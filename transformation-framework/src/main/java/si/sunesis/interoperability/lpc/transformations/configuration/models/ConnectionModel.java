@@ -24,6 +24,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Represents a connection configuration for various protocol types.
  * Supports multiple protocols including NATS, MQTT, RabbitMQ, and Modbus.
@@ -84,6 +87,15 @@ public class ConnectionModel {
      * MQTT protocol version (3 or 5)
      */
     private Integer version = 5;
+
+    /**
+     * Per-device Last Will and Testament / retained online-offline status configuration.
+     * One extra MQTT client is opened per entry, since a single MQTT connection can carry
+     * only one will but may front multiple devices.
+     */
+    @EqualsAndHashCode.Exclude
+    @JsonProperty("device-status")
+    private List<MqttDeviceStatusModel> deviceStatus = new ArrayList<>();
 
     // RabbitMQ specific parameters
     /**
