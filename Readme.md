@@ -272,13 +272,14 @@ connections:
     max-reconnects: integer
     reconnect-jitter: integer
     reconnect-jitter-tls: integer
-    device-status:
+    device-status: # a list, one entry per device sharing this connection
       - device-id: string
         topic: string
         online-message: string
         offline-message: string
         qos: integer
         retain: true/false
+      - device-id: string
 ...
 ```
 
