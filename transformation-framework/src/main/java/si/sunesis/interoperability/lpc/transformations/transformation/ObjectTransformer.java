@@ -56,7 +56,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.text.ParseException;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -503,7 +503,7 @@ public class ObjectTransformer {
         String patternZ = "yyyy-MM-dd'T'HH:mm:ss'Z'";
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(patternZ);
         Date date = new Date(millisecond);
-        LocalDateTime ldt = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        LocalDateTime ldt = date.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
         String timestampZ = String.format("\"%s\"", ldt.format(formatter));
 
         mappingDefinition = mappingDefinition.replace("\"$timestampZ\"", timestampZ);
