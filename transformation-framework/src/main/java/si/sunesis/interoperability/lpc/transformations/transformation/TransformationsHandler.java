@@ -83,6 +83,7 @@ public class TransformationsHandler {
                 if (requestHandler != null) {
                     try {
                         requestHandler.publish(registration.getMessage(), registration.getTopic());
+                        log.info("Published registration message to topic: {}", registration.getTopic());
                     } catch (HandlerException e) {
                         log.error("Error publishing registration message.", e);
                     }
