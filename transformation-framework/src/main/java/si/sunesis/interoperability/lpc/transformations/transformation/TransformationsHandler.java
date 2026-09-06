@@ -29,6 +29,7 @@ import si.sunesis.interoperability.lpc.transformations.configuration.models.Regi
 import si.sunesis.interoperability.lpc.transformations.configuration.models.TransformationModel;
 import si.sunesis.interoperability.lpc.transformations.connections.Connections;
 import si.sunesis.interoperability.lpc.transformations.exceptions.LPCException;
+import si.sunesis.interoperability.lpc.transformations.observability.LpcMetrics;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -52,7 +53,33 @@ public class TransformationsHandler {
     @Inject
     private ObjectTransformer objectTransformer;
 
+    @Inject
+    private LpcMetrics metrics;
+
     private final ArrayList<TransformationHandler> transformationHandlers = new ArrayList<>();
+
+    /**
+     * Connections of the currently active configuration; exposed for health checks.
+     */
+    private volatile Connections activeConnections;
+
+    /**
+     * Returns the connections of the currently active configuration.
+     *
+     * @return Active connections, or null before the first configuration has been applied
+     */
+    public Connections getActiveConnections() {
+        return activeConnections;
+    }
+
+    /**
+     * Returns the number of currently active transformation handlers.
+     *
+     * @return Number of active transformations
+     */
+    public int getActiveTransformationCount() {
+        return transformationHandlers.size();
+    }
 
     /**
      * Starts the transformation handling process.
@@ -75,6 +102,7 @@ public class TransformationsHandler {
      */
     private void handleTransformations(Boolean newConf) throws LPCException {
         Connections connections = new Connections(configuration, newConf);
+        this.activeConnections = connections;
         for (ConfigurationModel configurationModel : configuration.getConfigurations()) {
             RegistrationModel registration = configurationModel.getRegistration();
 
@@ -91,6 +119,7 @@ public class TransformationsHandler {
 
             for (TransformationModel transformationModel : configurationModel.getTransformations()) {
                 TransformationHandler handler = new TransformationHandler(transformationModel, objectTransformer, connections, registration);
+                handler.setMetrics(metrics);
                 transformationHandlers.add(handler);
                 handler.handle();
             }

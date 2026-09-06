@@ -280,9 +280,13 @@ connections:
 #### NATS
 
 Currently supported parameters for connection with NATS are **host**,
-**port**, **username**, **password**, **reconnect**,
+**port**, **ssl**, **username**, **password**, **reconnect**,
 **max-pings-out**, **ping-interval**, **request-cleanup-interval**, **connection-timeout**,
 **reconnect-buffer-size**, **reconnect-wait**, **max-reconnects**, **reconnect-jitter** and **reconnect-jitter-tls**.
+
+TLS is enabled either by the `tls://` scheme in **host** (platform trust store) or by the **ssl** block described
+in [Transport security](#transport-security), which also enables mutual TLS with a site-specific CA and client
+certificate.
 
 Example of configuration for NATS:
 
@@ -314,6 +318,7 @@ to [NATS documentation](https://docs.nats.io/using-nats/developer/connecting/rec
 
 Currently supported parameters for connection with MQTT are **host**,
 **port**, **ssl**, **version**, **username**, **password** and **reconnect**.
+See [Transport security](#transport-security) for the **ssl** block.
 
 Example of configuration for MQTT:
 
@@ -389,6 +394,43 @@ connections:
     port: 502
   ..
 ```
+
+### Transport security
+
+NATS and MQTT connections support TLS. The TLS protocol version (TLS 1.2 or TLS 1.3) is negotiated by the Java
+runtime; on OpenJDK 17 both are enabled and TLS 1.0/1.1 are disabled. Two modes are available through the **ssl**
+block of a connection:
+
+```yaml
+connections:
+  - name: NATS-connection
+    type: NATS
+    host: nats.example.org
+    port: 4222
+    ssl:
+      default: true                       # use the platform trust store (server authentication only)
+  - name: MQTT-connection
+    type: MQTT
+    host: mqtt.example.org
+    port: 8883
+    ssl:
+      ca-cert-path: /etc/lpc/tls/ca.pem          # PEM/DER certificate of the site CA
+      client-cert-path: /etc/lpc/tls/client.p12  # PKCS#12 keystore with the client certificate and key
+      client-cert-password: changeit             # optional
+```
+
+- **default: true** uses the JVM trust store; the server certificate must chain to a trusted CA.
+- **ca-cert-path** together with **client-cert-path** builds a dedicated TLS context that trusts only the given CA
+  and presents the client certificate, i.e. mutual TLS. The broker then authenticates the LPC by certificate and can
+  authorise it per subject or topic.
+
+Certificates are provisioned outside the LPC (site PKI, Kubernetes Secrets, cert-manager, or at installation on
+edge gateways) and referenced as files. After rotating a certificate, save the configuration file again (or restart
+the LPC); the configuration watcher re-creates the connections.
+
+Each connection terminates its own TLS session inside the LPC process; the LPC does not translate security
+properties between protocols, and Modbus TCP and serial Modbus carry no authentication or encryption. The LPC host
+must therefore be placed in a trusted network zone and the Modbus segment must be isolated from routable networks.
 
 ### Registration
 
@@ -923,16 +965,38 @@ This option can be individually set for each transformation in the configuration
 
 By setting the value of the option to `both`, LPC will validate the messages for IEEE 2030.5 schema compliance for both
 incoming and outgoing messages.
-By setting the value of the option to `incoming`, LPC will validate the messages for IEEE 2030.5 schema compliance for
-incoming messages only.
-By setting the value of the option to `outgoing`, LPC will validate the messages for IEEE 2030.5 schema compliance for
-outgoing messages only.
+By setting the value of the option to `incoming`, LPC will validate the messages received on the incoming
+(device-side) connection only.
+By setting the value of the option to `outgoing`, LPC will validate the messages received on the outgoing
+(server-side) connection only, including messages that are written to Modbus registers.
+In addition, whenever the option is not `none`, every transformed message is validated before it is published.
 
 This will be validated upon startup and when the message is received or sent.
 
-In case of non-compliance, LPC will log the error message and suggest the possible correct structure.
+Validation is fail-closed: a message that does not comply with the schema is rejected, logged with the validation
+error and a suggestion of the correct structure, and counted in the `lpc_messages_rejected_total` metric. It is
+**not** transformed or forwarded, so that a malformed control message cannot reach a device. (Up to version 1.5,
+non-compliant messages were only logged and still forwarded.)
 
 By default, if option is not present in the configuration file, the value of the option is set to `none`.
+
+## Health, metrics and remote configuration
+
+The HTTP server of the LPC (default port 9094) exposes:
+
+- `GET /health`, `GET /health/live`, `GET /health/ready` (MicroProfile Health). Liveness is UP once a configuration
+  has been applied. Readiness is UP when every NATS, MQTT and RabbitMQ connection is connected; Modbus connections
+  are reported in the response but do not affect readiness, because a switched-off device must not take the
+  converter out of service for the other devices it serves. Use `/health/live` and `/health/ready` as Kubernetes
+  liveness and readiness probes.
+- `GET /metrics` (MicroProfile Metrics, JSON; Prometheus text format with `Accept: text/plain`). Application
+  metrics: `lpc_messages_transformed_total`, `lpc_messages_rejected_total` and `lpc_publish_failures_total`, each
+  tagged with the transformation name, and the gauges `lpc_connections_total`, `lpc_connections_up` and
+  `lpc_transformations_active`, in addition to the JVM base metrics.
+- `POST /lpc/config` and `GET /lpc/config` for uploading and downloading the configuration file. Both require the
+  request header `API_KEY` to match the `API_KEY` environment variable (or system property). If no API key is
+  configured, the endpoints are disabled and answer 401. Because an uploaded configuration is applied immediately,
+  expose this endpoint only inside a trusted network and behind TLS termination.
 
 ## Deployment
 

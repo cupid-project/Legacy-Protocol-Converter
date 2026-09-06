@@ -6,7 +6,7 @@
     <parent>
         <groupId>si.sunesis.interoperability.lpc</groupId>
         <artifactId>legacy-protocol-converter</artifactId>
-        <version>1.5.1</version>
+        <version>1.6.0</version>
     </parent>
 
     <artifactId>transformation-framework</artifactId>
@@ -27,6 +27,23 @@
         <dependency>
             <groupId>com.kumuluz.ee.cors</groupId>
             <artifactId>kumuluzee-cors</artifactId>
+        </dependency>
+
+        <!-- Observability: /health (MicroProfile Health) and /metrics (MicroProfile Metrics) -->
+        <dependency>
+            <groupId>com.kumuluz.ee.health</groupId>
+            <artifactId>kumuluzee-health</artifactId>
+            <version>${kumuluzee-health.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.kumuluz.ee.metrics</groupId>
+            <artifactId>kumuluzee-metrics-core</artifactId>
+            <version>${kumuluzee-metrics.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.kumuluz.ee.config</groupId>
+            <artifactId>kumuluzee-config-mp</artifactId>
+            <version>${kumuluzee-config-mp.version}</version>
         </dependency>
 
         <!-- Misc -->
