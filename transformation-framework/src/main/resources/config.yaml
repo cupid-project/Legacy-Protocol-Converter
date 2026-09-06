@@ -3,7 +3,7 @@ kumuluzee:
   server:
     http:
       port: 9094
-  version: 1.5.1
+  version: 1.6.0
   env:
     name: prod
   cors-filter:
@@ -11,3 +11,13 @@ kumuluzee:
       enabled: true
       allow-origin: "*"
       supported-methods: "GET, POST, PUT, HEAD, OPTIONS, DELETE"
+  health:
+    servlet:
+      mapping: /health/*
+      enabled: true
+    logs:
+      enabled: false
+  metrics:
+    servlet:
+      mapping: /metrics/*
+      enabled: true

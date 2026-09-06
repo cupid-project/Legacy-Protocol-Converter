@@ -19,8 +19,9 @@ COPY ./transformation-framework/target/legacy-protocol-converter.jar .
 COPY ./log-config/log4j2.xml ./log-config/log4j2.xml
 COPY ./pymodbus_script.py /app/pymodbus_script.py
 
-ARG API-KEY
-ENV KUMULUZEE_LOGS_CONFIGFILELOCATION=./log-config/log4j2.xml API-KEY=$API-KEY
+# API key for the /lpc/config endpoint; leave unset to keep the endpoint disabled
+ARG API_KEY
+ENV KUMULUZEE_LOGS_CONFIGFILELOCATION=./log-config/log4j2.xml API_KEY=$API_KEY
 
 ENTRYPOINT ["java", "-jar", "legacy-protocol-converter.jar"]
 

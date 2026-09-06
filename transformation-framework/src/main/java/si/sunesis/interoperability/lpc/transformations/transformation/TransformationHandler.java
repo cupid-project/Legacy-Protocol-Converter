@@ -33,6 +33,7 @@ import si.sunesis.interoperability.lpc.transformations.configuration.models.*;
 import si.sunesis.interoperability.lpc.transformations.connections.Connections;
 import si.sunesis.interoperability.lpc.transformations.enums.ValidateIEEE2030Dot5;
 import si.sunesis.interoperability.lpc.transformations.exceptions.LPCException;
+import si.sunesis.interoperability.lpc.transformations.observability.LpcMetrics;
 import si.sunesis.interoperability.lpc.transformations.utils.TimeUtils;
 import si.sunesis.interoperability.modbus.ModbusClient;
 
@@ -63,6 +64,11 @@ public class TransformationHandler {
     private final Connections connections;
 
     private final TransformationModel transformation;
+
+    /**
+     * Optional metrics sink; when null, no metrics are recorded.
+     */
+    private LpcMetrics metrics;
 
     private final List<RequestHandler> incomingConnections = new ArrayList<>();
 
@@ -117,6 +123,37 @@ public class TransformationHandler {
                 .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
                 .build();
         webTarget = webClient.target("http://localhost:" + port + "/").path("modbus");
+    }
+
+    /**
+     * Attaches a metrics sink to this handler.
+     *
+     * @param metrics The metrics sink, may be null
+     */
+    public void setMetrics(LpcMetrics metrics) {
+        this.metrics = metrics;
+    }
+
+    /**
+     * Validates a message against the IEEE 2030.5 schema when validation is enabled for this transformation.
+     * Validation is fail-closed: a message that does not validate is rejected and must not be forwarded.
+     *
+     * @param message   The message to validate
+     * @param direction Description of the message source, used for logging
+     * @return true if the message may be forwarded, false if it has been rejected
+     */
+    private boolean validateOrReject(String message, String direction) {
+        try {
+            objectTransformer.validateTransform(message, transformation.getValidateIEEE2030dot5());
+            return true;
+        } catch (Exception e) {
+            log.error("Rejected {} message in transformation {}: IEEE 2030.5 validation failed. {}",
+                    direction, transformation.getName(), e.getMessage());
+            if (metrics != null) {
+                metrics.messageRejected(transformation.getName());
+            }
+            return false;
+        }
     }
 
     /**
@@ -283,13 +320,10 @@ public class TransformationHandler {
                     String msg = new String((byte[]) message);
                     log.info("Incoming message on topic {} from device: \n{}", transformation.getConnections().getIncomingTopic(), msg);
 
-                    if (transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
-                            transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.INCOMING) {
-                        try {
-                            objectTransformer.validateTransform(msg, transformation.getValidateIEEE2030dot5());
-                        } catch (Exception e) {
-                            log.error("Error validating transformation received from incoming: {}. {}", transformation.getName(), e.getMessage());
-                        }
+                    if ((transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
+                            transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.INCOMING)
+                            && !validateOrReject(msg, "incoming")) {
+                        return;
                     }
 
                     String transformedMessage = objectTransformer.transform(msg,
@@ -344,13 +378,10 @@ public class TransformationHandler {
                         String msg = new String((byte[]) message);
                         log.info("Incoming message from server: \n{}", msg);
 
-                        if (transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
-                                transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.OUTGOING) {
-                            try {
-                                objectTransformer.validateTransform(msg, transformation.getValidateIEEE2030dot5());
-                            } catch (Exception e) {
-                                log.error("Error validating transformation received from outgoing: {}. {}", transformation.getName(), e.getMessage());
-                            }
+                        if ((transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
+                                transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.OUTGOING)
+                                && !validateOrReject(msg, "outgoing")) {
+                            return;
                         }
 
                         String transformedMessage = objectTransformer.transform(msg,
@@ -387,13 +418,14 @@ public class TransformationHandler {
                         String msg = new String((byte[]) message);
                         log.info("Incoming message from server for modbus: {}", msg);
 
-                        if (transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
-                                transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.INCOMING) {
-                            try {
-                                objectTransformer.validateTransform(msg, transformation.getValidateIEEE2030dot5());
-                            } catch (Exception e) {
-                                log.error("Error validating transformation for Modbus: {}. {}", transformation.getName(), e.getMessage());
-                            }
+                        if ((transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
+                                transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.OUTGOING)
+                                && !validateOrReject(msg, "outgoing (Modbus write)")) {
+                            return;
+                        }
+
+                        if (metrics != null) {
+                            metrics.messageTransformed(transformation.getName());
                         }
 
                         try {
@@ -421,12 +453,13 @@ public class TransformationHandler {
 
         log.debug("Publishing message to topic: {} with message: {}", topic, message);
 
-        if (transformation.getValidateIEEE2030dot5() != ValidateIEEE2030Dot5.NONE) {
-            try {
-                objectTransformer.validateTransform(message, transformation.getValidateIEEE2030dot5());
-            } catch (Exception e) {
-                log.error("Error validating transformation: {}. {}", transformation.getName(), e.getMessage());
-            }
+        if (transformation.getValidateIEEE2030dot5() != ValidateIEEE2030Dot5.NONE
+                && !validateOrReject(message, "transformed")) {
+            return;
+        }
+
+        if (metrics != null) {
+            metrics.messageTransformed(transformation.getName());
         }
 
         for (RequestHandler connection : connections) {
@@ -438,17 +471,25 @@ public class TransformationHandler {
             }
         }
 
-        if (retryCount > 0) {
-            for (int i = 0; i < retryCount; i++) {
-                for (Map.Entry<RequestHandler, String[]> entry : failed.entrySet()) {
-                    try {
-                        log.debug("Retrying to publish message");
-                        entry.getKey().publish(entry.getValue()[0], entry.getValue()[1]);
-                        failed.remove(entry.getKey());
-                    } catch (HandlerException e) {
-                        log.error("Error publishing failed message", e);
-                    }
+        for (int i = 0; i < retryCount && !failed.isEmpty(); i++) {
+            Iterator<Map.Entry<RequestHandler, String[]>> it = failed.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<RequestHandler, String[]> entry = it.next();
+                try {
+                    log.debug("Retrying to publish message (attempt {} of {})", i + 1, retryCount);
+                    entry.getKey().publish(entry.getValue()[0], entry.getValue()[1]);
+                    it.remove();
+                } catch (HandlerException e) {
+                    log.error("Error publishing failed message", e);
                 }
+            }
+        }
+
+        if (!failed.isEmpty()) {
+            log.error("Message on topic {} could not be published to {} connection(s) after {} retries",
+                    topic, failed.size(), retryCount);
+            if (metrics != null) {
+                metrics.publishFailed(transformation.getName(), failed.size());
             }
         }
     }
