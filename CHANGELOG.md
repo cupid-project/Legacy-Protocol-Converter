@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.6.0 (unreleased)
+## Unreleased
+
+## 1.6.0 (2026-09-07)
 
 Security and reliability hardening.
 
