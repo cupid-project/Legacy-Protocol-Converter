@@ -32,6 +32,11 @@
         <jserialcomm.version>2.11.0</jserialcomm.version>
 
         <interoperability-common.version>1.4.0</interoperability-common.version>
+
+        <!-- Match the SLF4J 1.7.x binding shipped by kumuluzee-logs-log4j2
+             (log4j-slf4j-impl 2.17.1). Transitive deps otherwise drag in
+             slf4j-api 2.0.x, which silently ignores that binding. -->
+        <slf4j.version>1.7.36</slf4j.version>
     </properties>
 
     <dependencies>
@@ -95,6 +100,14 @@
                 <groupId>com.kumuluz.ee.cors</groupId>
                 <artifactId>kumuluzee-cors</artifactId>
                 <version>${kumuluzee-cors.version}</version>
+            </dependency>
+
+            <!-- Pin SLF4J API so the log4j-slf4j-impl binding is actually used
+                 (see slf4j.version comment above). -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
             </dependency>
 
             <!-- JAXB -->
