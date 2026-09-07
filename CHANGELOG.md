@@ -4,6 +4,12 @@
 
 Security and reliability hardening.
 
+### Features
+- MQTT connections support a `device-status` block: one lightweight status-only client per listed device-id,
+  registering a retained "offline" Last Will and Testament and publishing a retained "online" message on connect
+  and every automatic reconnect. Lets devices bridged through LPC report Online/Offline liveness to consumers,
+  since MQTT itself carries no such signal. A connection's `device-status` list may contain multiple entries.
+
 ### Security
 - The configuration endpoints `POST/GET /lpc/config` now enforce the `API_KEY` header (constant-time comparison).
   The check had been commented out. When no `API_KEY` is configured the endpoints are disabled (401).
@@ -21,12 +27,17 @@ Security and reliability hardening.
 - Publish retries no longer modify the retry map while iterating it (ConcurrentModificationException) and report a
   final failure after the last retry.
 
+### Bug Fixes
+- `$timestampZ` in transformation mappings is now formatted in UTC (`ZoneOffset.UTC`) instead of the JVM's default
+  time zone, since the `Z` suffix implies UTC. Previously the value was wrong on any machine not running in UTC.
+
 ### Observability
 - `/health`, `/health/live`, `/health/ready` (MicroProfile Health): liveness after configuration is applied;
   readiness when all NATS/MQTT/RabbitMQ connections are connected; per-connection state in the response.
 - `/metrics` (MicroProfile Metrics): `lpc_messages_transformed_total`, `lpc_messages_rejected_total`,
   `lpc_publish_failures_total` per transformation; `lpc_connections_total`, `lpc_connections_up`,
   `lpc_transformations_active`.
+- A registration message publish now logs an info line with the topic it was sent to.
 
 ### Other
 - `GET /lpc/config` returns `config.yaml`, the file that `POST /lpc/config` writes (was `mqtt-nats.yaml`).
