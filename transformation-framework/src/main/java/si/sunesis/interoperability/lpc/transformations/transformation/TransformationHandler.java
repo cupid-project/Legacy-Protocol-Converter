@@ -546,12 +546,10 @@ public class TransformationHandler {
 
                     log.debug("Request data: {}", modbusRequest);
 
-                    int maxRetries = 3;
-                    int retryCount = 0;
-                    boolean success = false;
+                    boolean success = sendPythonModbusRequest(modbusRequest, group, registerMap, messageModel);
 
-                    while (!success) {
-                        success = sendPythonModbusRequest(modbusRequest, group, registerMap, messageModel, retryCount, maxRetries);
+                    if (!success) {
+                        failed.add(group);
                     }
 
                     latch.countDown();
@@ -579,9 +577,10 @@ public class TransformationHandler {
         }
 
         // Retry logic for failed groups
-        if (messageModel.getRetryCount() > 0) {
-            for (int i = 0; i < messageModel.getRetryCount(); i++) {
-                for (List<ModbusModel> group : failed) {
+        if (messageModel.getRetryCount() != null && messageModel.getRetryCount() > 0) {
+            for (int i = 0; i < messageModel.getRetryCount() && !failed.isEmpty(); i++) {
+                // Iterate a copy: failed.remove(group) below would otherwise throw ConcurrentModificationException.
+                for (List<ModbusModel> group : new ArrayList<>(failed)) {
                     try {
                         if (messageModel.getModbusLibrary().equalsIgnoreCase("java") || connectionModel.getHost() == null) {
                             ModbusRequest request = ModbusHandler.buildJavaModbusRequest(msgToRegisterMap, group, messageModel);
@@ -596,16 +595,8 @@ public class TransformationHandler {
                         } else {
                             JsonObject modbusRequest = ModbusHandler.buildPythonModbusRequest(msgToRegisterMap, group, messageModel, connectionModel);
 
-                            int maxRetries = 3;
-                            int retryCount = 0;
-                            boolean success = false;
-
-                            while (!success) {
-                                success = sendPythonModbusRequest(modbusRequest, group, registerMap, messageModel, retryCount, maxRetries);
-
-                                if (success) {
-                                    failed.remove(group);
-                                }
+                            if (sendPythonModbusRequest(modbusRequest, group, registerMap, messageModel)) {
+                                failed.remove(group);
                             }
                         }
                     } catch (InterruptedException ie) {
@@ -769,60 +760,59 @@ public class TransformationHandler {
     }
 
     /**
-     * Sends a Modbus request to the Python-based Modbus service over HTTP.
-     * Processes the response and handles common errors with retry logic.
+     * Sends a Modbus request to the Python-based Modbus service over HTTP, with a bounded retry loop.
+     *
+     * <p>A dropped connection (an {@link java.io.EOFException} wrapped in a JAX-RS
+     * {@link javax.ws.rs.ProcessingException}) is retried up to the message's {@code modbus-connection-retry-count}
+     * with a short linear back-off. Any other error, or exhausting the retries, returns {@code false} so the
+     * caller can mark the group failed and move on; this method never blocks the scheduler thread indefinitely.
      *
      * @param request      The JSON object containing the Modbus request details
      * @param group        The group of Modbus registers to process in this request
      * @param registerMap  Map to store register values from the response
-     * @param messageModel Configuration for the Modbus message format
-     * @param retryCount   Current retry attempt counter
-     * @param maxRetries   Maximum number of retries to attempt
+     * @param messageModel Configuration for the Modbus message format; {@code modbus-connection-retry-count} bounds the retries
      * @return True if the request was processed successfully, false otherwise
-     * @throws InterruptedException If the thread is interrupted during retry delays
+     * @throws InterruptedException If the thread is interrupted during a retry back-off
      */
-    private Boolean sendPythonModbusRequest(JsonObject
-                                                    request, List<ModbusModel> group, Map<Integer, Object> registerMap, MessageModel messageModel,
-                                            int retryCount, int maxRetries) throws InterruptedException {
-        Response response = null;
-        boolean success = false;
-        try {
-            response = webTarget.request(MediaType.APPLICATION_JSON)
-                    .post(Entity.json(request));
+    private boolean sendPythonModbusRequest(JsonObject request, List<ModbusModel> group,
+                                            Map<Integer, Object> registerMap, MessageModel messageModel) throws InterruptedException {
+        int connectionRetries = messageModel.getModbusConnectionRetryCount() == null ? 0
+                : Math.max(0, messageModel.getModbusConnectionRetryCount());
+        int maxAttempts = connectionRetries + 1;
 
-            if (response.hasEntity()) {
-                String responseString = response.readEntity(String.class);
-                log.debug("Received python response: {}", responseString);
-                ModbusHandler.handlePythonModbusResponse(responseString, registerMap, group, messageModel);
-            }
-            success = true;
-        } catch (javax.ws.rs.ProcessingException e) {
-            // Check if it's an EOFException or timeout
-            if (e.getCause() instanceof java.util.concurrent.ExecutionException &&
-                    e.getCause().getCause() instanceof java.io.EOFException) {
-                log.warn("EOFException occurred during HTTP request, retrying ({}/{})", retryCount + 1, maxRetries);
-                retryCount++;
-                if (retryCount >= maxRetries) {
-                    log.error("Max retries reached for HTTP request", e);
-                    throw e;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            Response response = null;
+            try {
+                response = webTarget.request(MediaType.APPLICATION_JSON)
+                        .post(Entity.json(request));
+
+                if (response.hasEntity()) {
+                    String responseString = response.readEntity(String.class);
+                    log.debug("Received python response: {}", responseString);
+                    ModbusHandler.handlePythonModbusResponse(responseString, registerMap, group, messageModel);
                 }
-                // Brief pause before retry
-                Thread.sleep(100L * retryCount);
-            } else {
-                // Other processing exception
-                log.error("Error processing HTTP request", e);
-                throw e;
-            }
-        } catch (Exception e) {
-            log.error("Error sending Modbus request", e);
-            throw e;
-        } finally {
-            if (response != null) {
-                response.close();
+                return true;
+            } catch (javax.ws.rs.ProcessingException e) {
+                boolean connectionDropped = e.getCause() instanceof java.util.concurrent.ExecutionException
+                        && e.getCause().getCause() instanceof java.io.EOFException;
+                if (connectionDropped && attempt < maxAttempts) {
+                    log.warn("Connection dropped during Modbus HTTP request, retrying ({}/{})", attempt, connectionRetries);
+                    Thread.sleep(100L * attempt);
+                } else {
+                    log.error("Modbus HTTP request failed after {} attempt(s)", attempt, e);
+                    return false;
+                }
+            } catch (Exception e) {
+                log.error("Error sending Modbus request", e);
+                return false;
+            } finally {
+                if (response != null) {
+                    response.close();
+                }
             }
         }
 
-        return success;
+        return false;
     }
 
     /**

@@ -14,6 +14,16 @@
     disconnected, i.e. the longest outage that can be bridged without losing subscriptions or QoS 1 messages
     queued during it. Defaults to `86400` (24 h) when a persistent session is used. MQTT v3 session lifetime
     stays broker-controlled.
+- `modbus-library: python`: a Modbus poll that hit a dropped HTTP connection to the pymodbus service (an
+  `EOFException` wrapped in a JAX-RS `ProcessingException`) spun in an unbounded `while (!success)` retry loop -
+  the attempt counter was passed by value and never advanced, so the max-retries check never fired. The
+  transformation's single scheduler thread was stuck retrying ~10x/s indefinitely with a `WARN` flood and no
+  recovery short of a restart, while other failure modes and the `java` library path were unaffected. The
+  transient retry is now bounded by a new per-message `modbus-connection-retry-count` (total attempts
+  `1 + modbus-connection-retry-count`, default `2`, short linear back-off); on exhaustion the group is marked
+  failed and the poll returns, matching the `java` path. Other error types are not retried here. The
+  failed-group retry loop also no longer mutates the `failed` list while iterating it
+  (`ConcurrentModificationException`).
 
 ### Bug Fixes
 - Fixed a startup bug that crashed the entire HTTP layer: `/health`, `/health/live`, `/health/ready`, `/metrics`,

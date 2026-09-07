@@ -139,4 +139,14 @@ public class MessageModel {
 
     @JsonProperty("retry-count")
     private Integer retryCount = 0;
+
+    /**
+     * Python Modbus library only. Additional attempts for a single HTTP request to the pymodbus service when the
+     * connection is dropped mid-request (a transient {@code EOFException}), retried with a short linear back-off
+     * within the same poll cycle. Total attempts are {@code 1 + modbus-connection-retry-count}; {@code 0}
+     * disables the transient retry. Independent of {@link #retryCount} (which re-runs whole failed groups);
+     * other error types are not retried here.
+     */
+    @JsonProperty("modbus-connection-retry-count")
+    private Integer modbusConnectionRetryCount = 2;
 }

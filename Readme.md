@@ -607,6 +607,7 @@ transformations:
       modbus-function-code: integer
       modbus-device-id: integer
       modbus-library: python/java
+      modbus-connection-retry-count: integer
       endianness: big/little/big-swap/little-swap
       modbus-registers:
         - register-address: integer
@@ -622,6 +623,7 @@ transformations:
         modbus-function-code: integer
         modbus-device-id: integer
         modbus-library: python/java
+        modbus-connection-retry-count: integer
         endianness: big/little/big-swap/little-swap
         modbus-registers:
           - register-address: integer
@@ -669,6 +671,7 @@ Messages options:
     - **modbus-device-id:** Client id of the Modbus device.
   - **endianness:** Endianness of the data, big, little, big-swap or little-swap. Default value is big.
   - **modbus-library:** Library used for Modbus TCP communication, either python or java.
+  - **modbus-connection-retry-count:** python library only. Extra attempts for a dropped HTTP connection to the pymodbus service within one poll cycle. Default 2. See below.
     - **modbus-registers:** List of definitions of modbus registers used for writing/reading the data.
 
 Interval request options:
@@ -685,10 +688,17 @@ Interval request options:
     - **modbus-device-id:** Client id of the Modbus device.
   - **endianness:** Endianness of the data, big, little, big-swap or little-swap. Default value is big.
   - **modbus-library:** Library used for Modbus TCP communication, either python or java.
+  - **modbus-connection-retry-count:** python library only. Extra attempts for a dropped HTTP connection to the pymodbus service within one poll cycle. Default 2. See below.
     - **modbus-registers:** List of definitions of modbus registers used for writing/reading the data.
 
 **retry-count** is used for all message structures and it specifies the number of retries for sending the message. If
 not specified, default value is 0.
+
+**modbus-connection-retry-count** applies only to `modbus-library: python`. If the HTTP connection to the pymodbus
+service is dropped mid-request (a transient `EOFException`), the request is retried this many extra times within the
+same poll cycle, with a short linear back-off (total attempts `1 + modbus-connection-retry-count`). It does not
+retry any other error, and is independent of **retry-count** (which re-runs whole failed register groups). Default
+value is 2; set it to 0 to disable the transient retry.
 
 All topics provide support for placeholders, by using `{KEY}`.
 LPC will replace this `KEY` with either system variable under the key `KEY` or with the value from provided Java
