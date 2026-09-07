@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Reliability
+- MQTT connections now use a persistent (non-clean) broker session by default whenever `reconnect: true`, so
+  subscriptions survive a reconnect. Previously every reconnect - even a brief network blip - started a fresh,
+  empty session: Paho's automatic reconnect restored the socket (and `/health` stayed green) but the broker had
+  discarded all subscriptions and Paho never re-issues them, so inbound-message-triggered transformations stopped
+  permanently until the process was restarted. Two new optional connection settings:
+  - `clean-start` (boolean, also governs MQTT v3 Clean Session) - explicit override of the above. Defaults to
+    `false` when `reconnect: true`, `true` otherwise (the previous behaviour).
+  - `session-expiry` (seconds, MQTT v5 only) - how long the broker retains the session while the client is
+    disconnected, i.e. the longest outage that can be bridged without losing subscriptions or QoS 1 messages
+    queued during it. Defaults to `86400` (24 h) when a persistent session is used. MQTT v3 session lifetime
+    stays broker-controlled.
+
 ### Bug Fixes
 - Fixed a startup bug that crashed the entire HTTP layer: `/health`, `/health/live`, `/health/ready`, `/metrics`,
   `/lpc/config` and even `/` all returned 503, regardless of Docker or `java -jar` deployment. Two independent causes,

@@ -89,6 +89,28 @@ public class ConnectionModel {
     private Integer version = 5;
 
     /**
+     * MQTT session persistence, mapping to MQTT v5 Clean Start and MQTT v3 Clean Session.
+     * <p>
+     * When {@code false}, the broker keeps this client's session - and therefore its subscriptions - across
+     * reconnects, so message-triggered transformations keep working after a connection blip without an application
+     * restart. When {@code true}, every (re)connect starts a fresh, empty session (Paho's own default), which
+     * silently drops all subscriptions on the first disconnect even though {@code reconnect} restores the socket.
+     * <p>
+     * If not set: defaults to {@code false} when {@link #reconnect} is enabled, {@code true} otherwise.
+     */
+    @JsonProperty("clean-start")
+    private Boolean cleanStart;
+
+    /**
+     * MQTT v5 only. Seconds the broker retains the session after the client disconnects - i.e. the longest
+     * connection outage that can be bridged without losing subscriptions (and QoS 1 messages queued during the
+     * outage). Ignored when the effective clean-start is {@code true}, and for MQTT v3 (whose session lifetime is
+     * broker-controlled). Defaults to {@code 86400} (24 h) when a persistent session is used and no value is given.
+     */
+    @JsonProperty("session-expiry")
+    private Long sessionExpiry;
+
+    /**
      * Per-device Last Will and Testament / retained online-offline status configuration.
      * One extra MQTT client is opened per entry, since a single MQTT connection can carry
      * only one will but may front multiple devices.
@@ -205,4 +227,30 @@ public class ConnectionModel {
      */
     @JsonProperty("reconnect-jitter-tls")
     private Integer reconnectJitterTls;
+
+    /**
+     * Default MQTT v5 session-expiry (24 h) applied when a persistent session is used and no
+     * {@code session-expiry} is configured.
+     */
+    public static final long DEFAULT_SESSION_EXPIRY_SECONDS = 86_400L;
+
+    /**
+     * Effective MQTT session persistence: the explicit {@link #cleanStart} when set, otherwise persistent
+     * (non-clean) exactly when {@link #reconnect} is enabled. See {@link #cleanStart}.
+     *
+     * @return {@code true} when the broker should keep the session across reconnects
+     */
+    public boolean isPersistentSession() {
+        return cleanStart != null ? !cleanStart : Boolean.TRUE.equals(reconnect);
+    }
+
+    /**
+     * Effective MQTT v5 session-expiry in seconds: the configured {@link #sessionExpiry} when set, otherwise
+     * {@link #DEFAULT_SESSION_EXPIRY_SECONDS}. Only meaningful when {@link #isPersistentSession()} is {@code true}.
+     *
+     * @return session-expiry interval in seconds
+     */
+    public long resolveSessionExpirySeconds() {
+        return sessionExpiry != null ? sessionExpiry : DEFAULT_SESSION_EXPIRY_SECONDS;
+    }
 }

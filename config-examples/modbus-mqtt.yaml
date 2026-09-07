@@ -8,6 +8,10 @@ connections:
     host: localhost
     port: 1883
     reconnect: true
+    # With reconnect enabled the broker session is persistent by default, so subscriptions
+    # survive a reconnect. Override if needed:
+    #   clean-start: false      # default when reconnect is true; set true for the old clean-session behaviour
+    #   session-expiry: 86400   # seconds the broker keeps the session while disconnected (MQTT v5 only)
     device-status:
       - device-id: "1"
 transformations:
