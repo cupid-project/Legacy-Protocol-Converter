@@ -148,8 +148,21 @@ public class LegacyProtocolConverterApplication extends ResourceConfig {
     /**
      * Utility class for consuming output streams from subprocess.
      * Captures and processes output from Python process streams.
+     * <p>
+     * A plain class rather than a record: the CDI/Weld version bundled with this
+     * KumuluzEE release fails to scan a JAX-RS Application class that contains a
+     * nested record (NoClassDefFoundError: record), which took down the entire
+     * web layer.
      */
-    private record StreamGobbler(InputStream inputStream, Consumer<String> consumer) implements Runnable {
+    private static final class StreamGobbler implements Runnable {
+        private final InputStream inputStream;
+        private final Consumer<String> consumer;
+
+        private StreamGobbler(InputStream inputStream, Consumer<String> consumer) {
+            this.inputStream = inputStream;
+            this.consumer = consumer;
+        }
+
         /**
          * Reads input streamline by line and processes each line with the consumer.
          */
