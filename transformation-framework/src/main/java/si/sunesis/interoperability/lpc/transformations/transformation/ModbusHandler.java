@@ -329,7 +329,7 @@ public class ModbusHandler {
                     data[i] = jsonObject.getAsJsonArray("data").get(i).getAsInt();  // Convert JsonElement to String
                 }
 
-                log.info("Data: {}", Arrays.toString(data));
+                log.trace("Data: {}", Arrays.toString(data));
 
                 if (data.length > 0) {
                     switch (ModbusFunctionCode.get(messageModel.getFunctionCode())) {
