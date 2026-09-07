@@ -32,11 +32,19 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.nio.file.Files;
 
 /**
  * RESTful API controller for managing Legacy Protocol Converter configurations.
  * Provides endpoints for uploading and downloading configuration files.
+ * <p>
+ * Both endpoints are protected by an API key: the request header API_KEY must match the value of the
+ * API_KEY environment variable (or system property). When no API key is configured, the endpoints are
+ * disabled and every request is rejected with 401, so that a converter cannot be reconfigured remotely
+ * by accident. Because an uploaded configuration is applied immediately by the configuration watcher,
+ * the endpoint must only be exposed inside a trusted network, preferably behind TLS termination.
  *
  * @author David Trafela, Sunesis
  * @since 1.0.1
@@ -45,6 +53,29 @@ import java.nio.file.Files;
 @RequestScoped
 @Path("/lpc/config")
 public class LegacyProtocolConverterResource extends Application {
+
+    /**
+     * Checks the API key of a request against the configured key.
+     * A constant-time comparison is used so that the key cannot be guessed character by character.
+     *
+     * @param req HTTP request context
+     * @return true if the request carries the configured API key, false otherwise or if no key is configured
+     */
+    static boolean isAuthorised(HttpServletRequest req) {
+        String apiKey = System.getenv(Constants.API_KEY_HEADER);
+        if (apiKey == null) {
+            apiKey = System.getProperty(Constants.API_KEY_HEADER);
+        }
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("Configuration endpoint called but no API_KEY is configured; request rejected");
+            return false;
+        }
+        String provided = req.getHeader(Constants.API_KEY_HEADER);
+        if (provided == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(apiKey.getBytes(StandardCharsets.UTF_8), provided.getBytes(StandardCharsets.UTF_8));
+    }
 
     /**
      * Uploads a configuration file via HTTP POST.
@@ -57,15 +88,9 @@ public class LegacyProtocolConverterResource extends Application {
     @POST
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public Response uploadFile(@FormDataParam("file") InputStream file, @Context HttpServletRequest req) {
-        /*
-        String API_KEY = System.getenv(Constants.API_KEY_HEADER);
-        if (API_KEY == null && System.getProperty(Constants.API_KEY_HEADER) != null) {
-            API_KEY = System.getProperty(Constants.API_KEY_HEADER);
-        }
-
-        if (API_KEY == null || !API_KEY.equals(req.getHeader(Constants.API_KEY_HEADER))) {
+        if (!isAuthorised(req)) {
             return Response.status(Response.Status.UNAUTHORIZED).build();
-        }*/
+        }
 
         String configuration = System.getenv(Constants.CONFIGURATION_FOLDER);
 
@@ -122,15 +147,9 @@ public class LegacyProtocolConverterResource extends Application {
     @GET
     @Produces(MediaType.APPLICATION_OCTET_STREAM)
     public Response downloadFile(@Context HttpServletRequest req) {
-        /*
-        String API_KEY = System.getenv(Constants.API_KEY_HEADER);
-        if (API_KEY == null && System.getProperty(Constants.API_KEY_HEADER) != null) {
-            API_KEY = System.getProperty(Constants.API_KEY_HEADER);
-        }
-
-        if (API_KEY == null || !API_KEY.equals(req.getHeader(Constants.API_KEY_HEADER))) {
+        if (!isAuthorised(req)) {
             return Response.status(Response.Status.UNAUTHORIZED).build();
-        }*/
+        }
 
         String configuration = System.getenv(Constants.CONFIGURATION_FOLDER);
 
@@ -145,7 +164,7 @@ public class LegacyProtocolConverterResource extends Application {
         File dir = new File(configuration);
 
         //Your local disk path where you want to store the file
-        String uploadedFileLocation = dir.getAbsolutePath() + File.separator + "mqtt-nats.yaml";
+        String uploadedFileLocation = dir.getAbsolutePath() + File.separator + "config.yaml";
 
         File file = new File(uploadedFileLocation);
 

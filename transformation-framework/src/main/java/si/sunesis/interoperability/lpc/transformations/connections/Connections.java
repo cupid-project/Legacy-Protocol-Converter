@@ -217,7 +217,7 @@ public class Connections {
      * @throws IOException          If there is an error establishing the connection
      * @throws InterruptedException If the thread is interrupted during connection
      */
-    private NatsConnection buildNatsClient(ConnectionModel connection) throws IOException, InterruptedException {
+    private NatsConnection buildNatsClient(ConnectionModel connection) throws IOException, InterruptedException, LPCException, NoSuchAlgorithmException, KeyManagementException {
         NatsConnection client = new NatsConnection();
 
         client.setReconnect(connection.getReconnect());
@@ -227,6 +227,18 @@ public class Connections {
 
         if (connection.getUsername() != null && connection.getPassword() != null) {
             optionsBuilder = optionsBuilder.userInfo(connection.getUsername(), connection.getPassword());
+        }
+
+        // TLS: a site-specific CA and client certificate (mutual TLS) or the platform trust store.
+        // The protocol version (TLS 1.2 or 1.3) is negotiated by the JDK provider.
+        if (connection.getSsl() != null) {
+            if (connection.getSsl().getClientCertPath() != null && connection.getSsl().getCaCertPath() != null) {
+                SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(buildKeyManagerFactory(connection).getKeyManagers(), buildTrustManagerFactory(connection).getTrustManagers(), null);
+                optionsBuilder = optionsBuilder.sslContext(sslContext);
+            } else if (Boolean.TRUE.equals(connection.getSsl().getUseDefault())) {
+                optionsBuilder = optionsBuilder.sslContext(SSLContext.getDefault());
+            }
         }
 
         if (connection.getMaxPingsOut() != null) {
@@ -317,7 +329,7 @@ public class Connections {
 
         if (connection.getSsl() != null) {
             if (connection.getSsl().getClientCertPath() != null && connection.getSsl().getCaCertPath() != null) {
-                SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+                SSLContext sslContext = SSLContext.getInstance("TLS");
                 sslContext.init(buildKeyManagerFactory(connection).getKeyManagers(), buildTrustManagerFactory(connection).getTrustManagers(), null);
                 options.setSocketFactory(sslContext.getSocketFactory());
 
@@ -356,7 +368,7 @@ public class Connections {
 
         if (connection.getSsl() != null) {
             if (connection.getSsl().getClientCertPath() != null && connection.getSsl().getCaCertPath() != null) {
-                SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+                SSLContext sslContext = SSLContext.getInstance("TLS");
                 sslContext.init(buildKeyManagerFactory(connection).getKeyManagers(), buildTrustManagerFactory(connection).getTrustManagers(), null);
                 options.setSocketFactory(sslContext.getSocketFactory());
 
@@ -523,7 +535,10 @@ public class Connections {
 
             KeyManagerFactory kmf = KeyManagerFactory
                     .getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(keyStore, connection.getSsl().getClientCertPassword().toCharArray());
+            char[] keyPassword = connection.getSsl().getClientCertPassword() == null
+                    ? new char[0]
+                    : connection.getSsl().getClientCertPassword().toCharArray();
+            kmf.init(keyStore, keyPassword);
             return kmf;
         } catch (Exception e) {
             throw new LPCException("Error building KeyManagerFactory", e);

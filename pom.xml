@@ -6,7 +6,7 @@
 
     <groupId>si.sunesis.interoperability.lpc</groupId>
     <artifactId>legacy-protocol-converter</artifactId>
-    <version>1.5.1</version>
+    <version>1.6.0</version>
     <packaging>pom</packaging>
     <modules>
         <module>transformation-framework</module>
@@ -22,6 +22,9 @@
         <kumuluzee.version>4.1.0</kumuluzee.version>
         <kumuluzee-logs.version>1.4.6</kumuluzee-logs.version>
         <kumuluzee-cors.version>2.0.0</kumuluzee-cors.version>
+        <kumuluzee-health.version>2.5.0</kumuluzee-health.version>
+        <kumuluzee-metrics.version>3.0.0</kumuluzee-metrics.version>
+        <kumuluzee-config-mp.version>2.0.0</kumuluzee-config-mp.version>
 
         <jakarta-xml.bind-api.version>4.0.2</jakarta-xml.bind-api.version>
         <jaxb-impl.version>4.0.5</jaxb-impl.version>
