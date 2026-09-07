@@ -325,7 +325,8 @@ to [NATS documentation](https://docs.nats.io/using-nats/developer/connecting/rec
 #### MQTT
 
 Currently supported parameters for connection with MQTT are **host**,
-**port**, **ssl**, **version**, **username**, **password**, **reconnect** and **device-status**.
+**port**, **ssl**, **version**, **username**, **password**, **reconnect**, **clean-start**,
+**session-expiry** and **device-status**.
 See [Transport security](#transport-security) for the **ssl** block.
 
 Example of configuration for MQTT:
@@ -342,6 +343,38 @@ connections:
     username: username
     password: password
     reconnect: false
+...
+```
+
+##### Session persistence and reconnect
+
+**reconnect** only restores the network connection. Paho does not re-subscribe on an automatic
+reconnect, so with a clean session every disconnect - even a brief one - leaves the client
+connected to the broker (and `/health` green) but with no subscriptions, and any transformation
+triggered by an incoming MQTT message stops until the process is restarted.
+
+To avoid this, LPC uses a **persistent** (non-clean) broker session by default whenever
+`reconnect: true`: the broker keeps the client's subscriptions across reconnects.
+
+- **clean-start** (boolean) - explicit override. Also governs MQTT v3 Clean Session. Defaults to
+  `false` when `reconnect: true`, otherwise `true` (Paho's own default). Set it to `true` to keep
+  the old behaviour.
+- **session-expiry** (seconds, MQTT v5 only) - how long the broker retains the session while the
+  client is disconnected: the longest outage that can be bridged without losing subscriptions, or
+  QoS 1 messages queued during the outage. Defaults to `86400` (24 h) when a persistent session is
+  used. The broker may cap this to its own configured maximum. MQTT v3 has no equivalent; its
+  session lifetime is broker-controlled.
+
+```yaml
+connections:
+  - name: MQTT-connection
+    type: MQTT
+    host: localhost
+    port: 1883
+    version: 5
+    reconnect: true
+    clean-start: false     # optional; already the default when reconnect is true
+    session-expiry: 3600    # optional; seconds, default 86400
 ...
 ```
 

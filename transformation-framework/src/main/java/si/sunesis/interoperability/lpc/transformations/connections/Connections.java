@@ -322,6 +322,14 @@ public class Connections {
             options.setAutomaticReconnect(true);
         }
 
+        // Persistent (non-clean) session: the broker keeps our subscriptions across reconnects. Paho does not
+        // re-subscribe on automatic reconnect, so with a clean session every disconnect silently and permanently
+        // stops inbound-message-triggered transformations until a restart. Defaults to persistent when reconnect
+        // is enabled; an explicit clean-start overrides. MQTT v3 session lifetime is broker-controlled.
+        boolean persistentSession = connection.isPersistentSession();
+        options.setCleanSession(!persistentSession);
+        log.debug("MQTT v3 connection {}: cleanSession={}", connection.getName(), !persistentSession);
+
         if (connection.getUsername() != null && connection.getPassword() != null) {
             options.setUserName(connection.getUsername());
             options.setPassword(connection.getPassword().toCharArray());
@@ -359,6 +367,21 @@ public class Connections {
 
         if (Boolean.TRUE.equals(connection.getReconnect())) {
             options.setAutomaticReconnect(true);
+        }
+
+        // Persistent (non-clean) session: the broker keeps our subscriptions across reconnects. Paho does not
+        // re-subscribe on automatic reconnect, so with Clean Start every disconnect silently and permanently
+        // stops inbound-message-triggered transformations until a restart. Defaults to persistent when reconnect
+        // is enabled; an explicit clean-start overrides. A non-zero session-expiry is required for the broker to
+        // retain the session past the current connection (an absent interval means "expire on disconnect").
+        boolean persistentSession = connection.isPersistentSession();
+        options.setCleanStart(!persistentSession);
+        if (persistentSession) {
+            long sessionExpiry = connection.resolveSessionExpirySeconds();
+            options.setSessionExpiryInterval(sessionExpiry);
+            log.debug("MQTT v5 connection {}: cleanStart=false, sessionExpiryInterval={}s", connection.getName(), sessionExpiry);
+        } else {
+            log.debug("MQTT v5 connection {}: cleanStart=true", connection.getName());
         }
 
         if (connection.getUsername() != null && connection.getPassword() != null) {
