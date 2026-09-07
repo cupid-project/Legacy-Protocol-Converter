@@ -108,11 +108,11 @@ public class TransformationHandler {
         clientConfig.property("jersey.config.client.readTimeout", 90000);     // 90 seconds
 
         // Register custom tracing filter
-        clientConfig.register((ClientRequestFilter) requestContext -> log.debug("Sending HTTP request to Python Modbus service: {}",
+        clientConfig.register((ClientRequestFilter) requestContext -> log.trace("Sending HTTP request to Python Modbus service: {}",
                 requestContext.getMethod() + " " + requestContext.getUri()));
 
         // Register response filter
-        clientConfig.register((ClientResponseFilter) (requestContext, responseContext) -> log.debug("Received HTTP response from Python Modbus service: {} {}",
+        clientConfig.register((ClientResponseFilter) (requestContext, responseContext) -> log.trace("Received HTTP response from Python Modbus service: {} {}",
                 responseContext.getStatus(),
                 responseContext.getStatusInfo().getReasonPhrase()));
 
@@ -518,13 +518,13 @@ public class TransformationHandler {
         CountDownLatch latch = new CountDownLatch(groups.size());
 
         if (groups.size() > 1) {
-            log.debug("Grouping Modbus requests");
-            log.debug("Groups: {}", groups);
+            log.trace("Grouping Modbus requests");
+            log.trace("Groups: {}", groups);
         } else {
-            log.debug("Sending Modbus request");
+            log.trace("Sending Modbus request");
         }
 
-        log.debug("Using library: {}", messageModel.getModbusLibrary());
+        log.trace("Using library: {}", messageModel.getModbusLibrary());
 
         for (List<ModbusModel> group : groups) {
             try {
@@ -544,7 +544,7 @@ public class TransformationHandler {
                 } else {
                     javax.json.JsonObject modbusRequest = ModbusHandler.buildPythonModbusRequest(msgToRegisterMap, group, messageModel, connectionModel);
 
-                    log.debug("Request data: {}", modbusRequest);
+                    log.trace("Request data: {}", modbusRequest);
 
                     int maxRetries = 3;
                     int retryCount = 0;
@@ -672,7 +672,7 @@ public class TransformationHandler {
 
             scheduledFuture = executorService.scheduleAtFixedRate(() -> {
                 try {
-                    log.debug("Publishing interval request");
+                    log.trace("Publishing interval request");
                     String message = transformation.getIntervalRequest().getRequest().getMessage();
 
                     String toTopic = transformation.getIntervalRequest().getRequest().getToTopic();
@@ -703,7 +703,7 @@ public class TransformationHandler {
         Long delay = getIntervalDelay();
 
         modbusScheduledFuture = executorService.scheduleAtFixedRate(() -> {
-            log.debug("Publishing Modbus interval request");
+            log.trace("Publishing Modbus interval request");
             MessageModel messageModel = transformation.getIntervalRequest().getRequest();
 
             try {
@@ -792,7 +792,7 @@ public class TransformationHandler {
 
             if (response.hasEntity()) {
                 String responseString = response.readEntity(String.class);
-                log.debug("Received python response: {}", responseString);
+                log.trace("Received python response: {}", responseString);
                 ModbusHandler.handlePythonModbusResponse(responseString, registerMap, group, messageModel);
             }
             success = true;
@@ -921,7 +921,7 @@ public class TransformationHandler {
      * @return The topic string with {natsId} replaced by the actual NATS ID
      */
     private String replaceWithNatsId(String topic, Integer deviceId) {
-        log.debug("Replacing NATS ID in topic: {} for device ID: {}", topic, deviceId);
+        log.trace("Replacing NATS ID in topic: {} for device ID: {}", topic, deviceId);
 
         if (deviceId == null) return topic;
         if (!topic.contains("{natsId}")) return topic;
@@ -930,7 +930,7 @@ public class TransformationHandler {
             String[] incomingConnectionNames = transformation.getConnections().getIncomingConnections();
             String conn = connections.getConnectionNameToIp().get(incomingConnectionNames[0]);
 
-            log.debug("Replacing with NATS ID for device ID: {} and connection parameters: {} the topic: {}", deviceId, conn, topic);
+            log.trace("Replacing with NATS ID for device ID: {} and connection parameters: {} the topic: {}", deviceId, conn, topic);
 
             // Initialize cache if not already done
             if (mappingsCache == null) {
@@ -967,7 +967,7 @@ public class TransformationHandler {
                     String fromString = key + fileCache.get(lpcIdKey);
                     //fromString = fromString.substring(0, Math.min(fromString.length(), 36));
 
-                    log.debug("From string: {}", fromString);
+                    log.trace("From string: {}", fromString);
 
                     UUID natsId = UUID.nameUUIDFromBytes(fromString.getBytes());
                     fileCache.put(key, String.valueOf(natsId));
@@ -1017,7 +1017,7 @@ public class TransformationHandler {
         Long delay = Long.valueOf(transformation.getIntervalRequest().getInterval());
 
         if (cron == null || cron.isEmpty()) {
-            log.debug("Using fixed delay for interval request: {} ms", delay);
+            log.trace("Using fixed delay for interval request: {} ms", delay);
         } else {
             try {
                 delay = TimeUtils.calculateDelay(cron, ntpServer);
