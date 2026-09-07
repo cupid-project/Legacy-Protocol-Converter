@@ -1,0 +1,72 @@
+connections:
+  - name: Modbus-connection
+    type: Modbus
+    host: 192.168.1.50
+    port: 502
+  - name: MQTT-connection
+    type: MQTT
+    host: localhost
+    port: 1883
+    reconnect: true
+    device-status:
+      - device-id: "1"
+transformations:
+  - name: Modbus TCP to MQTT telemetry
+    description: Reads holding registers from a Modbus TCP device on an interval and publishes them as JSON to MQTT
+    connections:
+      incoming-connection:
+        - Modbus-connection
+      outgoing-connection:
+        - MQTT-connection
+      outgoing-topic: devices/1/telemetry
+      outgoing-format: JSON
+    to-outgoing:
+      to-topic: devices/1/telemetry
+      message: '{
+            "timestamp": "$timestamp",
+            "voltage": {
+              "lpc:mapping": {
+                "path": "30001",
+                "type": "int16"
+              }
+            },
+            "current": {
+              "lpc:mapping": {
+                "path": "30002",
+                "type": "int16"
+              }
+            },
+            "power": {
+              "lpc:mapping": {
+                "path": "30003",
+                "type": "int32"
+              }
+            },
+            "status": {
+              "lpc:mapping": {
+                "path": "30005",
+                "type": "int16",
+                "values": ["off", "standby", "running", "fault"]
+              }
+            }
+          }
+        '
+    interval-request:
+      interval: 5000 # poll every 5 seconds
+      request:
+        modbus-function-code: 3 # read holding registers
+        modbus-device-id: 1
+        endianness: big
+        modbus-registers:
+          # factor scales the raw register value at decode time, before it is
+          # substituted into the "path" above, e.g. a raw 2318 becomes 231.8 V
+          - register-address: 30001
+            type: int16
+            factor: 0.1
+          - register-address: 30002
+            type: int16
+            factor: 0.01
+          - register-address: 30003
+            type: int32
+          - register-address: 30005
+            type: int16

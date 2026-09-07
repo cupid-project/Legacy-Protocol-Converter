@@ -21,6 +21,7 @@
 package si.sunesis.interoperability.lpc.transformations.configuration;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import lombok.Getter;
@@ -94,6 +95,7 @@ public class Configuration {
 
             ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
             objectMapper.findAndRegisterModules();
+            objectMapper.enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY);
 
             File[] files = readFiles();
 

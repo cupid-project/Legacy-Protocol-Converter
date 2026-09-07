@@ -272,6 +272,14 @@ connections:
     max-reconnects: integer
     reconnect-jitter: integer
     reconnect-jitter-tls: integer
+    device-status: # a list, one entry per device sharing this connection
+      - device-id: string
+        topic: string
+        online-message: string
+        offline-message: string
+        qos: integer
+        retain: true/false
+      - device-id: string
 ...
 ```
 
@@ -317,7 +325,7 @@ to [NATS documentation](https://docs.nats.io/using-nats/developer/connecting/rec
 #### MQTT
 
 Currently supported parameters for connection with MQTT are **host**,
-**port**, **ssl**, **version**, **username**, **password** and **reconnect**.
+**port**, **ssl**, **version**, **username**, **password**, **reconnect** and **device-status**.
 See [Transport security](#transport-security) for the **ssl** block.
 
 Example of configuration for MQTT:
@@ -336,6 +344,65 @@ connections:
     reconnect: false
 ...
 ```
+
+##### Device status (Last Will and Testament)
+
+MQTT alone does not report whether a device is online or offline. **device-status** configures,
+per device, an MQTT Last Will and Testament (LWT) together with a retained "online" message, so a
+server subscribed to the status topic can tell whether a device is reachable.
+
+Because MQTT allows exactly one will per connection, LPC opens one extra, status-only MQTT client
+per **device-status** entry, in addition to the connection's regular data client. Each status
+client:
+
+- registers a retained will (**offline-message**) with the broker on connect, which the broker
+  publishes automatically if the client disconnects ungracefully (network loss, crash);
+- publishes a retained **online-message** once connected, and again after every automatic
+  reconnect.
+
+Possible options are:
+
+```yaml
+device-status:
+  - device-id: string
+    topic: string
+    online-message: string
+    offline-message: string
+    qos: integer
+    retain: true/false
+```
+
+- **device-id:** Required. Identifier of the device this status entry represents.
+- **topic:** Topic the will and status messages are published to. Supports the `{deviceId}`
+  placeholder. Default is `devices/{deviceId}/status`.
+- **online-message:** Message published once connected/reconnected. Default is
+  `{"status":"online"}`.
+- **offline-message:** Will message published by the broker on ungraceful disconnect. Default is
+  `{"status":"offline"}`.
+- **qos:** QoS (0-2) used for the will and status publishes. Default is `2`.
+- **retain:** Whether the will and status publishes are retained. Default is `true`.
+
+A single connection may list multiple devices:
+
+```yaml
+connections:
+  - name: MQTT-connection
+    type: MQTT
+    host: localhost
+    port: 8883
+    device-status:
+      - device-id: "12345"
+      - device-id: "12346"
+        topic: devices/{deviceId}/status
+        qos: 1
+        retain: true
+...
+```
+
+Note that a single ungraceful disconnect (LPC crash, network loss) causes every device on that
+connection to flip to offline at the same time, since it is the underlying MQTT connection that
+was lost, not any individual device. A single device going silent while LPC otherwise stays
+connected is not detected by this mechanism.
 
 #### RabbitMQ
 

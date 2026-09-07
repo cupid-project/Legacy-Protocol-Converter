@@ -40,3 +40,10 @@ build/
 /logs/
 
 *.versionsBackup
+
+### Paho MQTT client persistence (auto-created per connection name) ###
+/MQTT-connection*/
+
+### Python ###
+__pycache__/
+*.pyc

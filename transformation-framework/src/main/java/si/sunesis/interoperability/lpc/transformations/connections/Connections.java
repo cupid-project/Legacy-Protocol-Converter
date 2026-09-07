@@ -287,6 +287,35 @@ public class Connections {
     private Mqtt3Client buildMqtt3Client(ConnectionModel connection) throws LPCException, org.eclipse.paho.client.mqttv3.MqttException, KeyManagementException, NoSuchAlgorithmException {
         MqttConnectOptions options = new MqttConnectOptions();
 
+        String serverURI = configureMqtt3Options(connection, options);
+
+        org.eclipse.paho.client.mqttv3.MqttAsyncClient mqttAsyncClient = new org.eclipse.paho.client.mqttv3.MqttAsyncClient(serverURI, connection.getName());
+        mqttAsyncClient.connect(options).waitForCompletion();
+
+        this.connectionNameToIp.put(connection.getName(), connection.getHost() + ":" + connection.getPort());
+
+        return new Mqtt3Client(mqttAsyncClient);
+    }
+
+    private Mqtt5Client buildMqtt5Client(ConnectionModel connection) throws LPCException, MqttException, KeyManagementException, NoSuchAlgorithmException {
+        MqttConnectionOptions options = new MqttConnectionOptions();
+
+        String serverURI = configureMqtt5Options(connection, options);
+
+        MqttAsyncClient mqttAsyncClient = new MqttAsyncClient(serverURI, connection.getName());
+        mqttAsyncClient.connect(options).waitForCompletion();
+
+        this.connectionNameToIp.put(connection.getName(), connection.getHost() + ":" + connection.getPort());
+
+        return new Mqtt5Client(mqttAsyncClient);
+    }
+
+    /**
+     * Configures common MQTT v3 connect options (reconnect, credentials, SSL) and returns the
+     * scheme-qualified server URI. Shared with {@link DeviceStatusClient} so status-only clients
+     * connect identically to the data client.
+     */
+    static String configureMqtt3Options(ConnectionModel connection, MqttConnectOptions options) throws LPCException, KeyManagementException, NoSuchAlgorithmException {
         String serverURI = connection.getHost() + ":" + connection.getPort();
 
         if (Boolean.TRUE.equals(connection.getReconnect())) {
@@ -317,17 +346,15 @@ public class Connections {
             serverURI = "tcp://" + serverURI;
         }
 
-        org.eclipse.paho.client.mqttv3.MqttAsyncClient mqttAsyncClient = new org.eclipse.paho.client.mqttv3.MqttAsyncClient(serverURI, connection.getName());
-        mqttAsyncClient.connect(options).waitForCompletion();
-
-        this.connectionNameToIp.put(connection.getName(), connection.getHost() + ":" + connection.getPort());
-
-        return new Mqtt3Client(mqttAsyncClient);
+        return serverURI;
     }
 
-    private Mqtt5Client buildMqtt5Client(ConnectionModel connection) throws LPCException, MqttException, KeyManagementException, NoSuchAlgorithmException {
-        MqttConnectionOptions options = new MqttConnectionOptions();
-
+    /**
+     * Configures common MQTT v5 connect options (reconnect, credentials, SSL) and returns the
+     * scheme-qualified server URI. Shared with {@link DeviceStatusClient} so status-only clients
+     * connect identically to the data client.
+     */
+    static String configureMqtt5Options(ConnectionModel connection, MqttConnectionOptions options) throws LPCException, KeyManagementException, NoSuchAlgorithmException {
         String serverURI = connection.getHost() + ":" + connection.getPort();
 
         if (Boolean.TRUE.equals(connection.getReconnect())) {
@@ -358,12 +385,7 @@ public class Connections {
             serverURI = "tcp://" + serverURI;
         }
 
-        MqttAsyncClient mqttAsyncClient = new MqttAsyncClient(serverURI, connection.getName());
-        mqttAsyncClient.connect(options).waitForCompletion();
-
-        this.connectionNameToIp.put(connection.getName(), connection.getHost() + ":" + connection.getPort());
-
-        return new Mqtt5Client(mqttAsyncClient);
+        return serverURI;
     }
 
     private RabbitMQClient buildRabbitMQClient(ConnectionModel connection) throws IOException, TimeoutException {
@@ -502,7 +524,7 @@ public class Connections {
         return serialParameters;
     }
 
-    private KeyManagerFactory buildKeyManagerFactory(ConnectionModel connection) throws LPCException {
+    static KeyManagerFactory buildKeyManagerFactory(ConnectionModel connection) throws LPCException {
         try (FileInputStream inKey = new FileInputStream(connection.getSsl().getClientCertPath())) {
             KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             if (connection.getSsl().getClientCertPassword() == null) {
@@ -523,7 +545,7 @@ public class Connections {
         }
     }
 
-    private TrustManagerFactory buildTrustManagerFactory(ConnectionModel connection) throws LPCException {
+    static TrustManagerFactory buildTrustManagerFactory(ConnectionModel connection) throws LPCException {
         try (FileInputStream in = new FileInputStream(connection.getSsl().getCaCertPath())) {
             KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
             CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
