@@ -319,7 +319,7 @@ public class TransformationHandler {
             for (RequestHandler incomingConnection : incomingConnections) {
                 incomingConnection.subscribe(incomingTopic, message -> {
                     String msg = new String((byte[]) message);
-                    log.info("Incoming message on topic {} from device: \n{}", transformation.getConnections().getIncomingTopic(), msg);
+                    log.trace("Incoming message on topic {} from device: \n{}", transformation.getConnections().getIncomingTopic(), msg);
 
                     if ((transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
                             transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.INCOMING)
@@ -331,7 +331,7 @@ public class TransformationHandler {
                             transformation.getToOutgoing().getMessage(),
                             transformation.getConnections().getIncomingFormat(),
                             transformation.getConnections().getOutgoingFormat());
-                    log.info("Transformed outgoing message: \n{}", transformedMessage);
+                    log.trace("Transformed outgoing message: \n{}", transformedMessage);
 
                     String toTopic = transformation.getToOutgoing().getToTopic();
 
@@ -377,7 +377,7 @@ public class TransformationHandler {
                 for (RequestHandler outgoingConnection : outgoingConnections) {
                     outgoingConnection.subscribe(outgoingTopic, message -> {
                         String msg = new String((byte[]) message);
-                        log.info("Incoming message from server: \n{}", msg);
+                        log.trace("Incoming message from server: \n{}", msg);
 
                         if ((transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
                                 transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.OUTGOING)
@@ -389,7 +389,7 @@ public class TransformationHandler {
                                 transformation.getToIncoming().getMessage(),
                                 transformation.getConnections().getOutgoingFormat(),
                                 transformation.getConnections().getIncomingFormat());
-                        log.info("Transformed incoming message: \n{}", transformedMessage);
+                        log.trace("Transformed incoming message: \n{}", transformedMessage);
 
                         String toTopic = transformation.getToIncoming().getToTopic();
                         toTopic = replacePlaceholders(toTopic);
@@ -417,7 +417,7 @@ public class TransformationHandler {
                 for (RequestHandler outgoingConnection : outgoingConnections) {
                     outgoingConnection.subscribe(outgoingTopic, message -> {
                         String msg = new String((byte[]) message);
-                        log.info("Incoming message from server for modbus: {}", msg);
+                        log.trace("Incoming message from server for modbus: {}", msg);
 
                         if ((transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
                                 transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.OUTGOING)
@@ -518,10 +518,10 @@ public class TransformationHandler {
         CountDownLatch latch = new CountDownLatch(groups.size());
 
         if (groups.size() > 1) {
-            log.info("Grouping Modbus requests");
+            log.debug("Grouping Modbus requests");
             log.debug("Groups: {}", groups);
         } else {
-            log.info("Sending Modbus request");
+            log.debug("Sending Modbus request");
         }
 
         log.debug("Using library: {}", messageModel.getModbusLibrary());
@@ -651,13 +651,13 @@ public class TransformationHandler {
         for (RequestHandler requestHandler : incomingConnections) {
             requestHandler.subscribe(fromTopic, message -> {
                 String msg = new String((byte[]) message);
-                log.info("Incoming message from device: \n{}", msg);
+                log.trace("Incoming message from device: \n{}", msg);
 
                 String transformedMessage = objectTransformer.transform(msg,
                         transformation.getToOutgoing().getMessage(),
                         transformation.getConnections().getIncomingFormat(),
                         transformation.getConnections().getOutgoingFormat());
-                log.info("Transformed message: \n{}", transformedMessage);
+                log.trace("Transformed message: \n{}", transformedMessage);
 
                 String toTopic = transformation.getToOutgoing().getToTopic();
                 toTopic = replacePlaceholders(toTopic);
@@ -672,7 +672,7 @@ public class TransformationHandler {
 
             scheduledFuture = executorService.scheduleAtFixedRate(() -> {
                 try {
-                    log.info("Publishing interval request");
+                    log.debug("Publishing interval request");
                     String message = transformation.getIntervalRequest().getRequest().getMessage();
 
                     String toTopic = transformation.getIntervalRequest().getRequest().getToTopic();
@@ -703,7 +703,7 @@ public class TransformationHandler {
         Long delay = getIntervalDelay();
 
         modbusScheduledFuture = executorService.scheduleAtFixedRate(() -> {
-            log.info("Publishing Modbus interval request");
+            log.debug("Publishing Modbus interval request");
             MessageModel messageModel = transformation.getIntervalRequest().getRequest();
 
             try {
@@ -753,7 +753,7 @@ public class TransformationHandler {
                         transformation.getToOutgoing().getMessage(),
                         transformation.getConnections().getIncomingFormat(),
                         transformation.getConnections().getOutgoingFormat());
-                log.info("Transformed message: {}", transformedMessage);
+                log.trace("Transformed message: {}", transformedMessage);
 
                 String toTopic = transformation.getToOutgoing().getToTopic();
                 toTopic = replaceWithNatsId(toTopic,
@@ -930,7 +930,7 @@ public class TransformationHandler {
             String[] incomingConnectionNames = transformation.getConnections().getIncomingConnections();
             String conn = connections.getConnectionNameToIp().get(incomingConnectionNames[0]);
 
-            log.info("Replacing with NATS ID for device ID: {} and connection parameters: {} the topic: {}", deviceId, conn, topic);
+            log.debug("Replacing with NATS ID for device ID: {} and connection parameters: {} the topic: {}", deviceId, conn, topic);
 
             // Initialize cache if not already done
             if (mappingsCache == null) {
@@ -967,7 +967,7 @@ public class TransformationHandler {
                     String fromString = key + fileCache.get(lpcIdKey);
                     //fromString = fromString.substring(0, Math.min(fromString.length(), 36));
 
-                    log.info("From string: {}", fromString);
+                    log.debug("From string: {}", fromString);
 
                     UUID natsId = UUID.nameUUIDFromBytes(fromString.getBytes());
                     fileCache.put(key, String.valueOf(natsId));
