@@ -172,6 +172,7 @@ public class TransformationHandler {
                 try {
                     String topic = replaceWithNatsId(registration.getTopic(), registration.getDeviceId());
                     requestHandler.publish(registration.getMessage(), topic);
+                    log.info("Published registration message to topic: {}", topic);
                 } catch (HandlerException e) {
                     log.error("Error publishing registration message.", e);
                 }
