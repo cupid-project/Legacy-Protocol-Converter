@@ -13,7 +13,7 @@ kumuluzee:
       supported-methods: "GET, POST, PUT, HEAD, OPTIONS, DELETE"
   health:
     servlet:
-      mapping: /health/*
+      mapping: health
       enabled: true
     logs:
       enabled: false

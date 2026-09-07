@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Bug Fixes
+- Fixed a startup bug that crashed the entire HTTP layer: `/health`, `/health/live`, `/health/ready`, `/metrics`,
+  `/lpc/config` and even `/` all returned 503, regardless of Docker or `java -jar` deployment. Two independent causes,
+  both required:
+  - `kumuluzee.health.servlet.mapping` was configured as `/health/*`, but the bundled `kumuluzee-health` library
+    always appends its own `/*` suffix to a custom mapping, producing the invalid path spec `/health/*/*` and
+    aborting Jetty's web app deployment. Changed to the bare name `health`, matching the library's expected format.
+  - The JAX-RS `Application` class (`LegacyProtocolConverterApplication`) contained a private nested `record`
+    (`StreamGobbler`); the CDI/Weld version bundled with this KumuluzEE release cannot scan a class containing a
+    Java record (`NoClassDefFoundError: record`). Converted it to a plain nested class. Pre-existing since April 2025,
+    unrelated to the 1.6.0 changes.
+
 ## 1.6.0 (2026-09-07)
 
 Security and reliability hardening.
