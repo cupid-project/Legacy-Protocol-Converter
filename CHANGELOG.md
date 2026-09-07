@@ -14,6 +14,19 @@
     disconnected, i.e. the longest outage that can be bridged without losing subscriptions or QoS 1 messages
     queued during it. Defaults to `86400` (24 h) when a persistent session is used. MQTT v3 session lifetime
     stays broker-controlled.
+- Python Modbus supervisor shutdown and restart handling:
+  - A normal shutdown (Ctrl+C / SIGTERM) no longer logs the supervisor's `InterruptedException` at `ERROR`
+    with a stack trace - it is the expected stop signal and is now a single `INFO` line.
+  - The Python process exiting is logged by exit code: `INFO` for a clean exit (0), `WARN` otherwise. It was
+    always logged at `ERROR`, and the "restart only if the process failed" comment did not match the code
+    (it always restarted); the process is still relaunched after any non-shutdown exit.
+  - The two stream-drain executors are now a single reused daemon pool, shut down when the supervisor exits.
+    Previously two non-daemon single-thread executors were created on every (re)start and never shut down,
+    leaking threads whenever the Python process was relaunched.
+  - Failing to start the process (e.g. `python3` missing) now backs off before retrying instead of spinning
+    in a tight loop.
+  - The Python process is killed forcibly if it ignores `destroy()` (SIGTERM); the shutdown hook's join on
+    the supervisor thread is now bounded.
 
 ### Bug Fixes
 - Fixed a startup bug that crashed the entire HTTP layer: `/health`, `/health/live`, `/health/ready`, `/metrics`,
