@@ -172,7 +172,7 @@ public class ObjectTransformer {
                 JSONMapper jsonMapper = new JSONMapper(modbusModel.getPath(), modbusModel.getType(), modbusModel.getValues(), modbusModel.getPattern());
                 String value = jsonMapper.getMappedValueJSON(jsonNode);
 
-                log.debug("Added value for register: {} with value: {}", modbusModel.getAddress(), value);
+                log.trace("Added value for register: {} with value: {}", modbusModel.getAddress(), value);
 
                 if (value == null) {
                     result.put(modbusModel.getAddress(), null);
@@ -204,7 +204,7 @@ public class ObjectTransformer {
                 XMLMapper xmlMapper = new XMLMapper(modbusModel.getPath(), modbusModel.getType(), modbusModel.getValues(), modbusModel.getPattern());
                 String value = xmlMapper.getMappedValueXML(document);
 
-                log.debug("Added value for register: {} with value: {}", modbusModel.getAddress(), value);
+                log.trace("Added value for register: {} with value: {}", modbusModel.getAddress(), value);
 
                 if (value == null || value.equals("null")) {
                     result.put(modbusModel.getAddress(), null);
@@ -274,7 +274,7 @@ public class ObjectTransformer {
                 IEEEObjectFactory.validateIEEE2030dot5(transformedString);
             }
 
-            log.debug("Transformation validated successfully");
+            log.trace("Transformation validated successfully");
 
             return transformedString;
         }
@@ -303,7 +303,7 @@ public class ObjectTransformer {
                         value = value.substring(1, value.length() - 1);
                     }
 
-                    log.debug("path: {}, value: {}", mapper.getPath(), value);
+                    log.trace("path: {}, value: {}", mapper.getPath(), value);
 
                     parentNode.setTextContent(value);
                 }
@@ -322,7 +322,7 @@ public class ObjectTransformer {
                 IEEEObjectFactory.validateIEEE2030dot5(transformedString);
             }
 
-            log.debug("Transformation validated successfully");
+            log.trace("Transformation validated successfully");
 
             return transformedString;
         }
@@ -384,7 +384,7 @@ public class ObjectTransformer {
                     value = value.substring(1, value.length() - 1);
                 }
 
-                log.debug("path: {}, value: {}", mapper.getPath(), value);
+                log.trace("path: {}, value: {}", mapper.getPath(), value);
 
                 parentNode.setTextContent(value);
             }
@@ -405,7 +405,7 @@ public class ObjectTransformer {
 
             String value = getValueFromMapper(mapper, input);
 
-            log.debug("path: {}, value: {}", mapper.getPath(), value);
+            log.trace("path: {}, value: {}", mapper.getPath(), value);
 
             if (value == null) {
                 value = "null";
@@ -537,7 +537,7 @@ public class ObjectTransformer {
                 IEEEObjectFactory.validateIEEE2030dot5(transformedString);
             }
 
-            log.debug("Transformation validated successfully");
+            log.trace("Transformation validated successfully");
 
             return transformedString;
         }
@@ -557,7 +557,7 @@ public class ObjectTransformer {
                 IEEEObjectFactory.validateIEEE2030dot5(transformedString);
             }
 
-            log.debug("Transformation validated successfully");
+            log.trace("Transformation validated successfully");
 
             return transformedString;
         }

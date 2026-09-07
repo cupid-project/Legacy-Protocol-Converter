@@ -75,8 +75,8 @@ public class ModbusHandler {
      * @return Array of integer register values ready for Modbus transmission
      */
     protected static int[] buildRegisters(Map<Integer, Float> msgToRegisterMap, List<ModbusModel> groupedModbusModel, MessageModel messageModel) {
-        log.debug("Starting register address: {}", groupedModbusModel.get(0).getAddress());
-        log.debug("Function code: {} value: {}", ModbusFunctionCode.get(messageModel.getFunctionCode()).name(), ModbusFunctionCode.get(messageModel.getFunctionCode()));
+        log.trace("Starting register address: {}", groupedModbusModel.get(0).getAddress());
+        log.trace("Function code: {} value: {}", ModbusFunctionCode.get(messageModel.getFunctionCode()).name(), ModbusFunctionCode.get(messageModel.getFunctionCode()));
 
         switch (ModbusFunctionCode.get(messageModel.getFunctionCode())) {
             case WRITE_SINGLE_COIL, WRITE_MULTIPLE_COILS -> {
@@ -85,7 +85,7 @@ public class ModbusHandler {
             }
             case WRITE_SINGLE_REGISTER -> {
                 int[] registers = prepareRegForWriting(messageModel, groupedModbusModel.get(0), msgToRegisterMap);
-                log.debug("Writing single register: {}", registers);
+                log.trace("Writing single register: {}", registers);
 
                 int value;
                 if (registers.length > 1) {
@@ -102,7 +102,7 @@ public class ModbusHandler {
             }
             case READ_WRITE_MULTIPLE_REGISTERS, WRITE_MULTIPLE_REGISTERS -> {
                 ArrayList<int[]> registers = prepareRegsForWriting(messageModel, groupedModbusModel, msgToRegisterMap);
-                log.debug("Writing registers: {}", registers);
+                log.trace("Writing registers: {}", registers);
 
                 if (registers.isEmpty()) {
                     log.warn("No registers to write. Using default value.");
@@ -141,7 +141,7 @@ public class ModbusHandler {
             quantity--;
         }
 
-        log.debug("Quantity: {}", quantity);
+        log.trace("Quantity: {}", quantity);
 
         int[] registers = buildRegisters(msgToRegisterMap, groupedModbusModel, messageModel);
 
@@ -271,7 +271,7 @@ public class ModbusHandler {
                 getValueFromJavaRegisters(holdingRegistersResponse, registerMap, groupedModbusModel, messageModel);
             }
             default ->
-                    log.debug("Function code is write only: {}. So no data to read.", messageModel.getFunctionCode());
+                    log.trace("Function code is write only: {}. So no data to read.", messageModel.getFunctionCode());
         }
     }
 
@@ -344,7 +344,7 @@ public class ModbusHandler {
                             getValueFromPythonRegisters(data, registerMap, groupedModbusModel, messageModel);
                         }
                         default ->
-                                log.debug("Function code is write only: {}. So no data to read.", messageModel.getFunctionCode());
+                                log.trace("Function code is write only: {}. So no data to read.", messageModel.getFunctionCode());
                     }
                 }
             }
@@ -410,8 +410,8 @@ public class ModbusHandler {
                                              byte[] bytes,
                                              Map<Integer, Object> registerMap,
                                              List<ModbusModel> groupedModbusModel) {
-        log.debug("Bytes: {}", bytes);
-        log.debug("Registers: {}", registers);
+        log.trace("Bytes: {}", bytes);
+        log.trace("Registers: {}", registers);
 
         for (ModbusModel modbusModel : groupedModbusModel) {
             String type = modbusModel.getType();
@@ -495,7 +495,7 @@ public class ModbusHandler {
             }
         }
 
-        log.debug("Register map: {}", registerMap);
+        log.trace("Register map: {}", registerMap);
     }
 
     // Existing methods remain but with corrected signed handling
@@ -829,7 +829,7 @@ public class ModbusHandler {
      * @return Array of register values ready for Modbus transmission
      */
     private static int[] prepareRegForWriting(MessageModel messageModel, ModbusModel modbusModel, Map<Integer, Float> msgToRegisterMap) {
-        log.debug("Preparing register {} for writing", modbusModel.getAddress());
+        log.trace("Preparing register {} for writing", modbusModel.getAddress());
         byte[] bytes = toByteArray(msgToRegisterMap.getOrDefault(modbusModel.getAddress(), 0f), modbusModel);
 
         if (messageModel.getEndianness().equals(Endianness.LITTLE_ENDIAN)) {
@@ -844,8 +844,8 @@ public class ModbusHandler {
 
         int[] registers = DataUtils.BeToRegArray(bytes);
 
-        log.debug("Register address {}, bytes: {}", modbusModel.getAddress(), bytes);
-        log.debug("Register address {}, registers: {}", modbusModel.getAddress(), registers);
+        log.trace("Register address {}, bytes: {}", modbusModel.getAddress(), bytes);
+        log.trace("Register address {}, registers: {}", modbusModel.getAddress(), registers);
 
         return registers;
     }
@@ -860,14 +860,14 @@ public class ModbusHandler {
      * @return List of register arrays ready for Modbus transmission
      */
     private static ArrayList<int[]> prepareRegsForWriting(MessageModel messageModel, List<ModbusModel> modbusModel, Map<Integer, Float> msgToRegisterMap) {
-        log.debug("Preparing multiple registes for writing");
+        log.trace("Preparing multiple registes for writing");
         ArrayList<int[]> registers = new ArrayList<>();
 
         for (ModbusModel model : modbusModel) {
             registers.add(prepareRegForWriting(messageModel, model, msgToRegisterMap));
         }
 
-        log.debug("Prepared registers: {}", registers);
+        log.trace("Prepared registers: {}", registers);
 
         return registers;
     }
