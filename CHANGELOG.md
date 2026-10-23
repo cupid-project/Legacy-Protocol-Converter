@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.6.1 (2026-10-23)
+
+Reliability and bug-fix release.
 
 ### Reliability
 - MQTT connections now use a persistent (non-clean) broker session by default whenever `reconnect: true`, so
