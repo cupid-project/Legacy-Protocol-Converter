@@ -3,7 +3,7 @@ kumuluzee:
   server:
     http:
       port: 9094
-  version: 1.6.0
+  version: 1.6.1
   env:
     name: prod
   cors-filter:
