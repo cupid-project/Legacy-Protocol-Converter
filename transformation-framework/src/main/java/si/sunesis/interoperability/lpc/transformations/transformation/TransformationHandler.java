@@ -108,11 +108,11 @@ public class TransformationHandler {
         clientConfig.property("jersey.config.client.readTimeout", 90000);     // 90 seconds
 
         // Register custom tracing filter
-        clientConfig.register((ClientRequestFilter) requestContext -> log.debug("Sending HTTP request to Python Modbus service: {}",
+        clientConfig.register((ClientRequestFilter) requestContext -> log.trace("Sending HTTP request to Python Modbus service: {}",
                 requestContext.getMethod() + " " + requestContext.getUri()));
 
         // Register response filter
-        clientConfig.register((ClientResponseFilter) (requestContext, responseContext) -> log.debug("Received HTTP response from Python Modbus service: {} {}",
+        clientConfig.register((ClientResponseFilter) (requestContext, responseContext) -> log.trace("Received HTTP response from Python Modbus service: {} {}",
                 responseContext.getStatus(),
                 responseContext.getStatusInfo().getReasonPhrase()));
 
@@ -319,7 +319,7 @@ public class TransformationHandler {
             for (RequestHandler incomingConnection : incomingConnections) {
                 incomingConnection.subscribe(incomingTopic, message -> {
                     String msg = new String((byte[]) message);
-                    log.info("Incoming message on topic {} from device: \n{}", transformation.getConnections().getIncomingTopic(), msg);
+                    log.trace("Incoming message on topic {} from device: \n{}", transformation.getConnections().getIncomingTopic(), msg);
 
                     if ((transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
                             transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.INCOMING)
@@ -331,7 +331,7 @@ public class TransformationHandler {
                             transformation.getToOutgoing().getMessage(),
                             transformation.getConnections().getIncomingFormat(),
                             transformation.getConnections().getOutgoingFormat());
-                    log.info("Transformed outgoing message: \n{}", transformedMessage);
+                    log.trace("Transformed outgoing message: \n{}", transformedMessage);
 
                     String toTopic = transformation.getToOutgoing().getToTopic();
 
@@ -377,7 +377,7 @@ public class TransformationHandler {
                 for (RequestHandler outgoingConnection : outgoingConnections) {
                     outgoingConnection.subscribe(outgoingTopic, message -> {
                         String msg = new String((byte[]) message);
-                        log.info("Incoming message from server: \n{}", msg);
+                        log.trace("Incoming message from server: \n{}", msg);
 
                         if ((transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
                                 transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.OUTGOING)
@@ -389,7 +389,7 @@ public class TransformationHandler {
                                 transformation.getToIncoming().getMessage(),
                                 transformation.getConnections().getOutgoingFormat(),
                                 transformation.getConnections().getIncomingFormat());
-                        log.info("Transformed incoming message: \n{}", transformedMessage);
+                        log.trace("Transformed incoming message: \n{}", transformedMessage);
 
                         String toTopic = transformation.getToIncoming().getToTopic();
                         toTopic = replacePlaceholders(toTopic);
@@ -417,7 +417,7 @@ public class TransformationHandler {
                 for (RequestHandler outgoingConnection : outgoingConnections) {
                     outgoingConnection.subscribe(outgoingTopic, message -> {
                         String msg = new String((byte[]) message);
-                        log.info("Incoming message from server for modbus: {}", msg);
+                        log.trace("Incoming message from server for modbus: {}", msg);
 
                         if ((transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.BOTH ||
                                 transformation.getValidateIEEE2030dot5() == ValidateIEEE2030Dot5.OUTGOING)
@@ -518,13 +518,13 @@ public class TransformationHandler {
         CountDownLatch latch = new CountDownLatch(groups.size());
 
         if (groups.size() > 1) {
-            log.info("Grouping Modbus requests");
-            log.debug("Groups: {}", groups);
+            log.trace("Grouping Modbus requests");
+            log.trace("Groups: {}", groups);
         } else {
-            log.info("Sending Modbus request");
+            log.trace("Sending Modbus request");
         }
 
-        log.debug("Using library: {}", messageModel.getModbusLibrary());
+        log.trace("Using library: {}", messageModel.getModbusLibrary());
 
         for (List<ModbusModel> group : groups) {
             try {
@@ -544,7 +544,7 @@ public class TransformationHandler {
                 } else {
                     javax.json.JsonObject modbusRequest = ModbusHandler.buildPythonModbusRequest(msgToRegisterMap, group, messageModel, connectionModel);
 
-                    log.debug("Request data: {}", modbusRequest);
+                    log.trace("Request data: {}", modbusRequest);
 
                     boolean success = sendPythonModbusRequest(modbusRequest, group, registerMap, messageModel);
 
@@ -642,13 +642,13 @@ public class TransformationHandler {
         for (RequestHandler requestHandler : incomingConnections) {
             requestHandler.subscribe(fromTopic, message -> {
                 String msg = new String((byte[]) message);
-                log.info("Incoming message from device: \n{}", msg);
+                log.trace("Incoming message from device: \n{}", msg);
 
                 String transformedMessage = objectTransformer.transform(msg,
                         transformation.getToOutgoing().getMessage(),
                         transformation.getConnections().getIncomingFormat(),
                         transformation.getConnections().getOutgoingFormat());
-                log.info("Transformed message: \n{}", transformedMessage);
+                log.trace("Transformed message: \n{}", transformedMessage);
 
                 String toTopic = transformation.getToOutgoing().getToTopic();
                 toTopic = replacePlaceholders(toTopic);
@@ -663,7 +663,7 @@ public class TransformationHandler {
 
             scheduledFuture = executorService.scheduleAtFixedRate(() -> {
                 try {
-                    log.info("Publishing interval request");
+                    log.trace("Publishing interval request");
                     String message = transformation.getIntervalRequest().getRequest().getMessage();
 
                     String toTopic = transformation.getIntervalRequest().getRequest().getToTopic();
@@ -694,7 +694,7 @@ public class TransformationHandler {
         Long delay = getIntervalDelay();
 
         modbusScheduledFuture = executorService.scheduleAtFixedRate(() -> {
-            log.info("Publishing Modbus interval request");
+            log.trace("Publishing Modbus interval request");
             MessageModel messageModel = transformation.getIntervalRequest().getRequest();
 
             try {
@@ -744,7 +744,7 @@ public class TransformationHandler {
                         transformation.getToOutgoing().getMessage(),
                         transformation.getConnections().getIncomingFormat(),
                         transformation.getConnections().getOutgoingFormat());
-                log.info("Transformed message: {}", transformedMessage);
+                log.trace("Transformed message: {}", transformedMessage);
 
                 String toTopic = transformation.getToOutgoing().getToTopic();
                 toTopic = replaceWithNatsId(toTopic,
@@ -788,7 +788,7 @@ public class TransformationHandler {
 
                 if (response.hasEntity()) {
                     String responseString = response.readEntity(String.class);
-                    log.debug("Received python response: {}", responseString);
+                    log.trace("Received python response: {}", responseString);
                     ModbusHandler.handlePythonModbusResponse(responseString, registerMap, group, messageModel);
                 }
                 return true;
@@ -911,7 +911,7 @@ public class TransformationHandler {
      * @return The topic string with {natsId} replaced by the actual NATS ID
      */
     private String replaceWithNatsId(String topic, Integer deviceId) {
-        log.debug("Replacing NATS ID in topic: {} for device ID: {}", topic, deviceId);
+        log.trace("Replacing NATS ID in topic: {} for device ID: {}", topic, deviceId);
 
         if (deviceId == null) return topic;
         if (!topic.contains("{natsId}")) return topic;
@@ -920,7 +920,7 @@ public class TransformationHandler {
             String[] incomingConnectionNames = transformation.getConnections().getIncomingConnections();
             String conn = connections.getConnectionNameToIp().get(incomingConnectionNames[0]);
 
-            log.info("Replacing with NATS ID for device ID: {} and connection parameters: {} the topic: {}", deviceId, conn, topic);
+            log.trace("Replacing with NATS ID for device ID: {} and connection parameters: {} the topic: {}", deviceId, conn, topic);
 
             // Initialize cache if not already done
             if (mappingsCache == null) {
@@ -957,7 +957,7 @@ public class TransformationHandler {
                     String fromString = key + fileCache.get(lpcIdKey);
                     //fromString = fromString.substring(0, Math.min(fromString.length(), 36));
 
-                    log.info("From string: {}", fromString);
+                    log.trace("From string: {}", fromString);
 
                     UUID natsId = UUID.nameUUIDFromBytes(fromString.getBytes());
                     fileCache.put(key, String.valueOf(natsId));
@@ -1007,7 +1007,7 @@ public class TransformationHandler {
         Long delay = Long.valueOf(transformation.getIntervalRequest().getInterval());
 
         if (cron == null || cron.isEmpty()) {
-            log.debug("Using fixed delay for interval request: {} ms", delay);
+            log.trace("Using fixed delay for interval request: {} ms", delay);
         } else {
             try {
                 delay = TimeUtils.calculateDelay(cron, ntpServer);

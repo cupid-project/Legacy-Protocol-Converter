@@ -34,7 +34,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -48,6 +50,13 @@ import java.util.function.Consumer;
 @Slf4j
 @ApplicationPath("/")
 public class LegacyProtocolConverterApplication extends ResourceConfig {
+
+    /** Delay before relaunching the Python API process after it exits or fails to start. */
+    private static final long PYTHON_RESTART_DELAY_MS = 5000L;
+    /** Grace period for the Python process to stop after SIGTERM before it is killed forcibly. */
+    private static final long PYTHON_TERMINATION_TIMEOUT_S = 5L;
+    /** How long the JVM shutdown hook waits for the supervisor thread to unwind. */
+    private static final long SHUTDOWN_JOIN_TIMEOUT_MS = 10000L;
 
     private Process pythonProcess = null;
 
@@ -84,8 +93,9 @@ public class LegacyProtocolConverterApplication extends ResourceConfig {
 
     /**
      * Manages the Python process used for Modbus operations.
-     * Launches a Python script in a separate process, monitors its output,
-     * and automatically restarts it if it fails.
+     * Launches a Python script in a separate process, drains its output streams,
+     * and relaunches it if it exits while the JVM is still running. A JVM shutdown
+     * hook interrupts the supervisor, which is the normal way it stops.
      */
     private void pythonHandler() {
         Thread thread = new Thread(() -> {
@@ -94,43 +104,69 @@ public class LegacyProtocolConverterApplication extends ResourceConfig {
 
             ProcessBuilder processBuilder = new ProcessBuilder(cmd);
 
+            // One daemon pool reused for every (re)start. The previous code created two non-daemon
+            // single-thread executors per loop iteration and never shut them down, leaking threads
+            // whenever the Python process was relaunched.
+            ExecutorService gobblerPool = Executors.newCachedThreadPool(r -> {
+                Thread t = new Thread(r, "python-api-stream-gobbler");
+                t.setDaemon(true);
+                return t;
+            });
+
             try {
                 while (!Thread.currentThread().isInterrupted()) {
                     try {
                         log.info("Starting Python API server...");
                         pythonProcess = processBuilder.start();
 
-                        StreamGobbler outputGobbler = new StreamGobbler(pythonProcess.getInputStream(),
-                                s -> log.debug("Python API InputStream output: {}", s));
-                        StreamGobbler errorGobbler = new StreamGobbler(pythonProcess.getErrorStream(),
-                                s -> log.debug("Python API ErrorStream output: {}", s));
+                        gobblerPool.submit(new StreamGobbler(pythonProcess.getInputStream(),
+                                s -> log.debug("Python API InputStream output: {}", s)));
+                        gobblerPool.submit(new StreamGobbler(pythonProcess.getErrorStream(),
+                                s -> log.debug("Python API ErrorStream output: {}", s)));
 
-                        Executors.newSingleThreadExecutor().submit(outputGobbler);
-                        Executors.newSingleThreadExecutor().submit(errorGobbler);
-
-                        // Wait for the process to exit
                         int exitCode = pythonProcess.waitFor();
-                        log.error("Python API process exited with code: {}", exitCode);
 
-                        // Restart only if the process failed
-                        Thread.sleep(5000); // Wait before restart
+                        if (Thread.currentThread().isInterrupted()) {
+                            break;
+                        }
+
+                        if (exitCode == 0) {
+                            log.info("Python API process exited (code 0), restarting in {} ms", PYTHON_RESTART_DELAY_MS);
+                        } else {
+                            log.warn("Python API process exited with code {}, restarting in {} ms", exitCode, PYTHON_RESTART_DELAY_MS);
+                        }
+
+                        Thread.sleep(PYTHON_RESTART_DELAY_MS);
                     } catch (InterruptedException e) {
-                        log.error("Python API process interrupted: ", e);
-                        Thread.currentThread().interrupt(); // Restore the interrupt flag
+                        log.info("Python API supervisor interrupted, shutting down.");
+                        Thread.currentThread().interrupt(); // Restore the flag; the while condition ends the loop
                     } catch (Exception e) {
-                        log.error("Error starting Python API: ", e);
+                        log.error("Error starting Python API, retrying in {} ms", PYTHON_RESTART_DELAY_MS, e);
+                        try {
+                            Thread.sleep(PYTHON_RESTART_DELAY_MS);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                        }
                     }
                 }
             } finally {
-                // Clean shutdown
                 if (pythonProcess != null && pythonProcess.isAlive()) {
                     pythonProcess.destroy();
+                    try {
+                        if (!pythonProcess.waitFor(PYTHON_TERMINATION_TIMEOUT_S, TimeUnit.SECONDS)) {
+                            pythonProcess.destroyForcibly();
+                        }
+                    } catch (InterruptedException e) {
+                        pythonProcess.destroyForcibly();
+                        Thread.currentThread().interrupt();
+                    }
                 }
+                gobblerPool.shutdownNow();
                 log.info("Python API supervisor thread exited.");
             }
-        });
+        }, "python-api-supervisor");
 
-        thread.setDaemon(false); // Ensure it runs as a non-daemon thread
+        thread.setDaemon(false); // Non-daemon: the finally block must run to reap the Python process
         thread.start();
 
         // Register JVM shutdown hook
@@ -138,11 +174,14 @@ public class LegacyProtocolConverterApplication extends ResourceConfig {
             log.info("Shutdown signal received. Stopping Python supervisor thread...");
             thread.interrupt();
             try {
-                thread.join(); // Optional: wait for it to finish
+                thread.join(SHUTDOWN_JOIN_TIMEOUT_MS);
+                if (thread.isAlive()) {
+                    log.warn("Python supervisor thread did not exit within {} ms", SHUTDOWN_JOIN_TIMEOUT_MS);
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-        }));
+        }, "python-supervisor-shutdown"));
     }
 
     /**
